@@ -1,35 +1,33 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { AgentRunner } from "../../../src/application/ports/agent-runner.ts";
 import { ScriptedAgentRunner } from "../../../src/infrastructure/agents/scripted/scripted-agent-runner.ts";
 import type { SpecifierTurn } from "../../../src/domain/schemas.ts";
 import { Role } from "../../../src/domain/roles.ts";
 import { RestitutionStatus, RunStatus, TurnDecision } from "../../../src/domain/workflow-values.ts";
-import { loadRunState } from "../../../src/infrastructure/persistence/file-run-store.ts";
+import {
+  loadRunState,
+  saveRunState,
+} from "../../../src/infrastructure/persistence/file-run-store.ts";
 import {
   createRestitution,
   loadRestitutionState,
   runRestitution,
+  saveRestitutionState,
 } from "../../../src/infrastructure/restitution/specification-restitution.ts";
 import { FileSpecificationJournal } from "../../../src/infrastructure/persistence/file-specification-journal.ts";
+import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
+import { runStateFactory } from "../../support/domain-factories.ts";
 
-const temporaryDirectories: string[] = [];
+const temporary = new TemporaryWorkspaceManager();
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
+  await temporary.cleanup();
 });
 
 async function temporaryRoot(label: string): Promise<string> {
-  const directory = await mkdtemp(resolve(tmpdir(), label));
-  temporaryDirectories.push(directory);
-
-  return directory;
+  return temporary.create(label);
 }
 
 function specification(featureId: string): SpecifierTurn {
@@ -144,5 +142,65 @@ describe("specification restitution", () => {
     expect(resumed.status).toBe(RestitutionStatus.Completed);
     expect(resumed.completedSequences).toEqual([1]);
     expect((await loadRestitutionState(created.directory)).nextSequence).toBe(2);
+  });
+
+  test("recovers a running sequence after an unclean controller stop", async () => {
+    const source = await sourceArchive(["recover-change"]);
+    const workspace = await temporaryRoot("restitution-target-");
+    await Bun.write(resolve(workspace, "README.md"), "# Existing test project\n");
+    const created = await createRestitution({
+      workspace,
+      specificationsDirectory: source,
+      maxTurnsPerSpecification: 8,
+    });
+    created.state.currentSequence = 1;
+    created.state.resumeRole = Role.Architect;
+    await saveRestitutionState(created.directory, created.state);
+    const run = runStateFactory({ workspace, currentRole: Role.Architect });
+    run.mode = "restitution";
+    run.targetSpecification = created.state.specifications[0]!;
+    await saveRunState(created.directory, run);
+
+    const result = await runRestitution(created.directory, new ScriptedAgentRunner());
+    const recovered = await loadRunState(created.directory);
+
+    expect(result.status).toBe(RestitutionStatus.Completed);
+    expect(recovered.interruptions).toMatchObject([
+      {
+        role: Role.Architect,
+        reason: "The restitution controller stopped before this turn completed.",
+      },
+    ]);
+  });
+
+  test("rejects a modified source archive and a conflicting target archive", async () => {
+    const modifiedSource = await sourceArchive(["modified-change"]);
+    await Bun.write(resolve(modifiedSource, "000001-modified-change.feature"), "tampered\n");
+    const firstWorkspace = await temporaryRoot("restitution-target-");
+
+    expect(
+      createRestitution({
+        workspace: firstWorkspace,
+        specificationsDirectory: modifiedSource,
+        maxTurnsPerSpecification: 8,
+      }),
+    ).rejects.toThrow("Specification integrity check failed");
+
+    const firstSource = await sourceArchive(["first-change"]);
+    const secondSource = await sourceArchive(["second-change"]);
+    const secondWorkspace = await temporaryRoot("restitution-target-");
+    await createRestitution({
+      workspace: secondWorkspace,
+      specificationsDirectory: firstSource,
+      maxTurnsPerSpecification: 8,
+    });
+
+    expect(
+      createRestitution({
+        workspace: secondWorkspace,
+        specificationsDirectory: secondSource,
+        maxTurnsPerSpecification: 8,
+      }),
+    ).rejects.toThrow("different specification journal");
   });
 });

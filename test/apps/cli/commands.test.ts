@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { CliArguments, parseMaxTurns } from "../../../src/apps/cli/commands.ts";
+import {
+  CliArguments,
+  parseMaxTurns,
+  runCli,
+  specificationsDirectory,
+  tokenSummary,
+  type CommandHandlers,
+} from "../../../src/apps/cli/commands.ts";
+import { emptyTokenTotals } from "../../../src/domain/token-usage.ts";
 
 const originalMaxTurns = process.env.WEB_APP_DEV_TEAM_MAX_TURNS;
 
@@ -37,5 +45,56 @@ describe("CLI arguments", () => {
     expect(new CliArguments(["bun", "index.ts", "demo"]).maxTurns()).toBe(20);
     expect(new CliArguments(["bun", "index.ts", "demo", "--max-turns", "8"]).maxTurns()).toBe(8);
     expect(() => parseMaxTurns("0")).toThrow("must be a positive integer");
+    expect(() => parseMaxTurns("1.5")).toThrow("must be a positive integer");
+    expect(() => parseMaxTurns("invalid")).toThrow("must be a positive integer");
+  });
+
+  test("dispatches every public command", async () => {
+    const calls: string[] = [];
+    const names = [
+      "restore-status",
+      "restore-resume",
+      "restore",
+      "restore:resume",
+      "git:resume",
+      "resume",
+      "tmux",
+      "demo",
+    ];
+    const handlers = Object.fromEntries(
+      names.map((name) => [
+        name,
+        async (arguments_: CliArguments) => {
+          calls.push(arguments_.command);
+        },
+      ]),
+    ) as CommandHandlers;
+
+    for (const name of names) {
+      await runCli(["bun", "index.ts", name], handlers);
+    }
+
+    expect(calls).toEqual(names);
+    expect(runCli(["bun", "index.ts", "unknown"], handlers)).rejects.toThrow(
+      "Unknown command unknown",
+    );
+  });
+
+  test("uses tmux by default and formats paths and token totals", async () => {
+    let command = "";
+    await runCli(["bun", "index.ts"], {
+      tmux: async (arguments_) => {
+        command = arguments_.command;
+      },
+    });
+    const totals = emptyTokenTotals();
+    totals.team.totalTokens = 12_345;
+
+    expect(command).toBe("tmux");
+    expect(specificationsDirectory("/tmp/specifications/manifest.json")).toBe(
+      "/tmp/specifications",
+    );
+    expect(specificationsDirectory("/tmp/specifications")).toBe("/tmp/specifications");
+    expect(tokenSummary(totals)).toContain("team 12,345");
   });
 });

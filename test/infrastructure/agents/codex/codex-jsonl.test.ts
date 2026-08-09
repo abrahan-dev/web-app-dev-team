@@ -1,5 +1,15 @@
-import { describe, expect, test } from "bun:test";
-import { interpretCodexEvent } from "../../../../src/infrastructure/agents/codex/codex-jsonl.ts";
+import { afterEach, describe, expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import {
+  consumeCodexJsonl,
+  interpretCodexEvent,
+} from "../../../../src/infrastructure/agents/codex/codex-jsonl.ts";
+import { TemporaryWorkspaceManager } from "../../../support/temporary-workspaces.ts";
+
+const temporary = new TemporaryWorkspaceManager();
+
+afterEach(() => temporary.cleanup());
 
 describe("Codex JSONL rendering", () => {
   test("extracts exact turn usage without double-counting token subsets", () => {
@@ -54,5 +64,40 @@ describe("Codex JSONL rendering", () => {
         },
       }).changedFiles,
     ).toEqual(["src/domain/order.ts", "test/domain/order.test.ts"]);
+  });
+
+  test.each([
+    ["reasoning", { type: "reasoning", summary: "Inspect the state." }, "THINKING"],
+    ["MCP tool", { type: "mcp_tool_call", name: "create_pull_request" }, "TOOL"],
+    ["web search", { type: "web_search", query: "Bun documentation" }, "SEARCH"],
+    ["plan", { type: "plan" }, "PLAN"],
+  ])("renders a completed %s event", (_label, item, expected) => {
+    expect(interpretCodexEvent({ type: "item.completed", item }).display).toContain(expected);
+  });
+
+  test("consumes JSONL, deduplicates files and reports malformed lines", async () => {
+    const root = await temporary.create("codex-jsonl-");
+    const logPath = resolve(root, "agent.log");
+    const lines = [
+      "not-json",
+      JSON.stringify({ type: "turn.started" }),
+      JSON.stringify({
+        type: "item.completed",
+        item: { type: "file_change", path: "src/order.ts" },
+      }),
+      JSON.stringify({
+        type: "item.completed",
+        item: { type: "file_change", path: "src/order.ts" },
+      }),
+      JSON.stringify({ type: "turn.failed", error: { message: "quota exhausted" } }),
+    ].join("\n");
+
+    const telemetry = await consumeCodexJsonl(new Blob([lines]).stream(), logPath);
+    const log = await readFile(logPath, "utf8");
+
+    expect(telemetry.changedFiles).toEqual(["src/order.ts"]);
+    expect(log).toContain("Unrecognized JSONL event");
+    expect(log).toContain("Agent execution started");
+    expect(log).toContain("quota exhausted");
   });
 });

@@ -22,31 +22,48 @@ the initial checks before a specialist starts.
 ```mermaid
 flowchart TD
   U["Human prompt"] --> S["Specifier"]
-  S --> H{"Human approval"}
+  S --> G{"Gherkin valid?"}
+  G -->|No| S
+  G -->|Yes| H{"Human approval"}
   H -->|Changes| S
   H -->|Approved| A["Architect"]
-  A --> B["Local project bootstrap"]
+  A -->|Clarification| S
+  A -->|Technical plan| B["Local bootstrap if required"]
 
   subgraph I["Optional implementation path"]
     direction TD
     B --> FR1{"Frontend required?"}
     FR1 -->|Yes| UI["UI designer"]
     FR1 -->|No| DR{"Data required?"}
-    UI --> DR
+    UI -->|Continue| DR
     DR -->|Yes| D["Data engineer"]
     DR -->|No| BR{"Backend required?"}
-    D --> BR
+    D -->|Continue| DC["Quality gate"]
+    DC -->|Failed| D
+    DC -->|Passed| BR
     BR -->|Yes| BE["Backend coder"]
     BR -->|No| FR2{"Frontend required?"}
-    BE --> FR2
+    BE -->|Continue| BC["Quality gate"]
+    BC -->|Failed| BE
+    BC -->|Passed| FR2
     FR2 -->|Yes| FE["Frontend coder"]
     FR2 -->|No| Q["QA"]
-    FE --> Q
+    FE -->|Continue| FC["Quality gate"]
+    FC -->|Failed| FE
+    FC -->|Passed| Q
   end
 
+  UI -->|Blocker| A
+  D -->|Blocker| A
+  BE -->|Blocker| A
+  FE -->|Blocker| A
+
   Q -->|Passed| C["Complete"]
-  Q -->|Failure| O["Specified failure owner"]
-  O --> Q
+  Q -->|Failed| O{"Declared failure owner"}
+  O -->|Architect| A
+  O -->|Data engineer| D
+  O -->|Backend coder| BE
+  O -->|Frontend coder| FE
 ```
 
 A specialist can send a technical conflict to the architect. The architect
@@ -63,12 +80,13 @@ drizzle/                      # Contains committed SQL migrations
 .data/                        # Contains ignored SQLite files
 ```
 
-The fixed stack is TypeScript 7, Bun, tRPC v11, Zod, OpenAPI 3.1, Swagger UI,
-Drizzle, `bun:sqlite`, React, Vite, TanStack Router, TanStack Query, Tailwind,
-shadcn/ui, and Playwright.
+The fixed stack uses TypeScript, Bun, tRPC, Zod, OpenAPI, Swagger UI, Drizzle,
+`bun:sqlite`, React, Vite, TanStack Router, TanStack Query, Tailwind, shadcn/ui,
+and Playwright. See the [stack catalog](./assets/workspace/stack.json) for the
+pinned versions.
 
-The internal API uses the alpha `@trpc/openapi` package. Pin its version. Do not
-use this API as a public compatibility contract.
+The internal API uses `@trpc/openapi`. Do not use this API as a public
+compatibility contract.
 
 ## Requirements and run
 
@@ -123,9 +141,8 @@ One turn is one accepted agent execution. A skipped role does not use a turn.
 Each restitution specification has a separate turn limit. A CLI option does not
 change `.env`.
 
-After each code-writing role, local checks examine structure and complexity.
-Before QA, the checks also run the available format, lint, typecheck, unit,
-integration, and E2E scripts.
+Before QA, the checks examine structure and complexity. They also run the
+available format, lint, typecheck, unit, integration, and E2E scripts.
 
 A failed check returns the work to the active role.
 
@@ -179,8 +196,8 @@ WEB_APP_DEV_TEAM_GIT_BASE_BRANCH=main
 Use `on` to require a Git repository. Use `off` to disable the workflow. Use
 `auto` to skip Git for a workspace that is not a Git repository.
 
-If a Git step fails, the run state records the step and error. Correct the
-external problem, and retry the step:
+If branch creation or final delivery fails, the run state records the step and
+error. Correct the external problem, and retry the step:
 
 ```bash
 bun run git:resume -- --run-dir /absolute/path/to/run
@@ -221,14 +238,10 @@ is the composition root. Architecture tests enforce these rules.
 
 ## Customize and verify
 
-Role instructions are in `assets/agents/roles/*.md`. Structured output schemas
-are in `assets/agents/output-schemas/`. The shared communication rules are in
-`assets/agents/communication.md`. The stack catalog is in
-`assets/workspace/stack.json`.
+See the [asset configuration guide](./assets/README.md) for supported changes
+and source code boundaries.
 
 ```bash
 bun run demo
-bun run complexity
-bun run typecheck
-bun test
+bun run check
 ```

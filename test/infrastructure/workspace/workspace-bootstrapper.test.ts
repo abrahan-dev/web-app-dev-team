@@ -1,25 +1,18 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { ChangePlan } from "../../../src/domain/schemas.ts";
 import { DeterministicWorkspaceBootstrapper } from "../../../src/infrastructure/workspace/workspace-bootstrapper.ts";
+import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
 
-const temporaryDirectories: string[] = [];
+const temporary = new TemporaryWorkspaceManager();
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
+  await temporary.cleanup();
 });
 
 async function workspace(): Promise<string> {
-  const directory = await mkdtemp(resolve(tmpdir(), "workspace-bootstrapper-"));
-  temporaryDirectories.push(directory);
-
-  return directory;
+  return temporary.create("workspace-bootstrapper-");
 }
 
 const plan: ChangePlan = {

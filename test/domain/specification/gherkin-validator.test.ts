@@ -25,4 +25,26 @@ Scenario: Empty step
     expect(result.errors).toContain("Line 3 has an empty Given statement.");
     expect(result.errors).toContain('Scenario "Empty step" has no When step.');
   });
+
+  test.each([
+    ["unsupported syntax", "Feature: Orders\nRule: Unsupported", "uses unsupported Gherkin syntax"],
+    [
+      "missing feature",
+      "Scenario: Orphan\nGiven a state\nWhen it runs\nThen it works",
+      "has no Feature",
+    ],
+    ["missing scenario", "Feature: Orders", "at least one Scenario"],
+    [
+      "duplicate feature",
+      "Feature: Orders\nFeature: More orders\nScenario: Create\nGiven a state\nWhen it runs\nThen it works",
+      "exactly one Feature",
+    ],
+    [
+      "duplicate scenario",
+      "Feature: Orders\nScenario: Create\nGiven a state\nWhen it runs\nThen it works\nScenario: Create\nGiven a state\nWhen it runs\nThen it works",
+      "is duplicated",
+    ],
+  ])("rejects %s", (_label, source, expected) => {
+    expect(validateGherkin(source).errors.some((error) => error.includes(expected))).toBe(true);
+  });
 });

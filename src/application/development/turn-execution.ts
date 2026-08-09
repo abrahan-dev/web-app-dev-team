@@ -1,7 +1,5 @@
 import { AgentRunError, type AgentRunResult, type AgentRunner } from "../ports/agent-runner.ts";
-import type { AgentTurn, Role, RunState } from "../../domain/schemas.ts";
-import { RunStatus } from "../../domain/workflow-values.ts";
-import { recordTokenUsage } from "../../domain/token-usage.ts";
+import type { AgentTurn, DevelopmentRun, Role, RunState } from "../../domain/schemas.ts";
 import { validateTransition } from "../../domain/workflow.ts";
 import {
   type DevelopmentServices,
@@ -60,45 +58,17 @@ function unpackAgentResult(raw: Awaited<ReturnType<AgentRunner["run"]>>): {
   return isAgentRunResult(raw) ? { result: raw, turn: raw.turn } : { result: null, turn: raw };
 }
 
-function recordExecution(
-  state: RunState,
-  role: Role,
-  startedAt: string,
-  result: AgentRunResult | null,
-): void {
-  const usage = executionUsage(result);
-  const observations = executionObservations(result, state.workspace);
-  state.turns += 1;
-  state.executions.push({
-    sequence: state.executions.length + 1,
-    turn: state.turns,
-    role,
-    startedAt,
-    completedAt: new Date().toISOString(),
-    status: RunStatus.Completed,
-    usage,
-    ...observations,
-  });
-
-  if (usage) {
-    recordTokenUsage(state.tokenTotals, role, usage);
-  }
-}
-
 export async function executeAgentTurn(options: {
   runner: AgentRunner;
   runDirectory: string;
-  state: RunState;
+  run: DevelopmentRun;
   journal: SpecificationJournal;
   attempt: AttemptState;
   services: DevelopmentServices;
 }): Promise<AcceptedTurn> {
-  const { runner, runDirectory, state, journal, attempt, services } = options;
-  const role = state.currentRole;
-
-  if (role === null) {
-    throw new Error("A running development team must have a current role.");
-  }
+  const { runner, runDirectory, run, journal, attempt, services } = options;
+  const state = run.state;
+  const role = run.currentRole();
 
   attempt.activeRole = role;
   attempt.startedAt = new Date().toISOString();
@@ -119,7 +89,12 @@ export async function executeAgentTurn(options: {
 
   turn = canonicalizeNextRole(state, turn);
   validateTransition(role, turn, state.mode, latestChangePlan(state, turn));
-  recordExecution(state, role, attempt.startedAt, result);
+  run.recordExecution(
+    role,
+    attempt.startedAt,
+    executionUsage(result),
+    executionObservations(result, state.workspace),
+  );
   attempt.executionRecorded = true;
   await services.runRepository.save(runDirectory, state);
   await services.operatorLog.turnCompleted(runDirectory, state, role, result?.usage ?? null);
@@ -130,44 +105,21 @@ export async function executeAgentTurn(options: {
 
 export async function recordFailedAttempt(
   runDirectory: string,
-  state: RunState,
+  run: DevelopmentRun,
   attempt: AttemptState,
   error: unknown,
   services: DevelopmentServices,
 ): Promise<void> {
+  const state = run.state;
   const failure = error instanceof Error ? error.message : String(error);
-  state.status = RunStatus.Failed;
-  state.failure = failure;
   const failedUsage = error instanceof AgentRunError ? error.usage : attempt.usage;
-
-  if (!attempt.executionRecorded && attempt.activeRole !== null) {
-    state.executions.push({
-      sequence: state.executions.length + 1,
-      turn: state.turns + 1,
-      role: attempt.activeRole,
-      startedAt: attempt.startedAt ?? new Date().toISOString(),
-      completedAt: new Date().toISOString(),
-      status: RunStatus.Failed,
-      usage: failedUsage,
-      commands: [],
-      changedFiles: [],
-    });
-
-    if (failedUsage) {
-      recordTokenUsage(state.tokenTotals, attempt.activeRole, failedUsage);
-    }
-  }
-
-  if (attempt.activeRole !== null) {
-    state.interruptions.push({
-      sequence: state.interruptions.length + 1,
-      role: attempt.activeRole,
-      turn: state.turns + 1,
-      createdAt: new Date().toISOString(),
-      reason: failure,
-      logPath: `logs/${attempt.activeRole}.log`,
-    });
-  }
+  run.recordFailedAttempt({
+    role: attempt.activeRole,
+    startedAt: attempt.startedAt,
+    usage: failedUsage,
+    executionRecorded: attempt.executionRecorded,
+    failure,
+  });
 
   await services.runRepository.save(runDirectory, state);
   await services.operatorLog.runFailure(runDirectory, state, attempt.activeRole, failure);

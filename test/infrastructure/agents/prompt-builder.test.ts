@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile, writeFile } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import {
   buildAgentPrompt,
@@ -15,13 +14,12 @@ import {
   createRunState,
   saveRunState,
 } from "../../../src/infrastructure/persistence/file-run-store.ts";
+import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
 
-const temporaryDirectories: string[] = [];
+const temporary = new TemporaryWorkspaceManager();
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-  );
+  await temporary.cleanup();
 });
 
 describe("role instructions", () => {
@@ -56,8 +54,7 @@ describe("role instructions", () => {
 });
 
 test("projects role-specific context and caches the workspace inventory", async () => {
-  const root = await mkdtemp(resolve(tmpdir(), "web-app-dev-team-context-"));
-  temporaryDirectories.push(root);
+  const root = await temporary.create("web-app-dev-team-context-");
   await writeFile(
     resolve(root, "package.json"),
     JSON.stringify({ scripts: { test: "bun test", lint: "eslint ." } }),

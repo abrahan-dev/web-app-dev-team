@@ -9,7 +9,7 @@ import { DeterministicRepositoryWorkflow } from "./repository-workflow.ts";
 
 export type GitWorkflowMode = "on" | "off" | "auto";
 
-function mode(value = process.env.WEB_APP_DEV_TEAM_GIT_WORKFLOW ?? "auto"): GitWorkflowMode {
+export function parseGitWorkflowMode(value: string): GitWorkflowMode {
   if (value === "on" || value === "off" || value === "auto") {
     return value;
   }
@@ -17,18 +17,28 @@ function mode(value = process.env.WEB_APP_DEV_TEAM_GIT_WORKFLOW ?? "auto"): GitW
   throw new Error("WEB_APP_DEV_TEAM_GIT_WORKFLOW must be on, off, or auto.");
 }
 
+function mode(value = process.env.WEB_APP_DEV_TEAM_GIT_WORKFLOW ?? "auto"): GitWorkflowMode {
+  return parseGitWorkflowMode(value);
+}
+
+export function parseMcpArguments(raw: string): string[] {
+  const arguments_ = JSON.parse(raw) as unknown;
+
+  if (!Array.isArray(arguments_) || !arguments_.every((value) => typeof value === "string")) {
+    throw new Error("WEB_APP_DEV_TEAM_GITHUB_MCP_ARGS must be a JSON string array.");
+  }
+
+  return arguments_;
+}
+
 function pullRequestPublisher(): PullRequestPublisher | null {
   if (process.env.WEB_APP_DEV_TEAM_CREATE_PR !== "on") {
     return null;
   }
 
-  const rawArguments = JSON.parse(
+  const rawArguments = parseMcpArguments(
     process.env.WEB_APP_DEV_TEAM_GITHUB_MCP_ARGS ?? '["stdio","--tools=create_pull_request"]',
-  ) as unknown;
-
-  if (!Array.isArray(rawArguments) || !rawArguments.every((value) => typeof value === "string")) {
-    throw new Error("WEB_APP_DEV_TEAM_GITHUB_MCP_ARGS must be a JSON string array.");
-  }
+  );
 
   return new GitHubMcpPullRequestPublisher({
     command: process.env.WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND ?? "github-mcp-server",

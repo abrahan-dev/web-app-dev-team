@@ -1,5 +1,5 @@
 import type { AgentRunner } from "../ports/agent-runner.ts";
-import type { RunState } from "../../domain/schemas.ts";
+import { DevelopmentRun, type RunState } from "../../domain/schemas.ts";
 import { Role } from "../../domain/roles.ts";
 import { RunStatus } from "../../domain/workflow-values.ts";
 import { NoRepositoryWorkflow, type RepositoryWorkflow } from "../ports/repository-workflow.ts";
@@ -17,41 +17,21 @@ import {
   processSpecificationPhase,
 } from "./turn-phases.ts";
 
-function assertTurnBudget(state: RunState): void {
-  if (state.turns >= state.maxTurns) {
-    throw new Error(`Maximum turn count (${state.maxTurns}) reached.`);
-  }
-}
-
-function approvedFeatureId(state: RunState): string {
-  const specification = state.specificationReviews.findLast(
-    ({ publishedSpecification }) => publishedSpecification !== null,
-  )?.publishedSpecification;
-
-  if (!specification) {
-    throw new Error("The Git workflow requires an approved specification.");
-  }
-
-  return specification.featureId;
-}
-
 async function runGitStep(
   runDirectory: string,
-  state: RunState,
+  run: DevelopmentRun,
   operation: () => Promise<void>,
   services: DevelopmentServices,
 ): Promise<boolean> {
   try {
     await operation();
-    state.failure = null;
-    state.status = state.currentRole === null ? RunStatus.Completed : RunStatus.Running;
-    await services.runRepository.save(runDirectory, state);
+    run.recordGitResult(null);
+    await services.runRepository.save(runDirectory, run.state);
 
     return true;
   } catch (error) {
-    state.status = RunStatus.Failed;
-    state.failure = error instanceof Error ? error.message : String(error);
-    await services.runRepository.save(runDirectory, state);
+    run.recordGitResult(error instanceof Error ? error.message : String(error));
+    await services.runRepository.save(runDirectory, run.state);
 
     return false;
   }
@@ -59,10 +39,11 @@ async function runGitStep(
 
 async function resumeGitFailure(
   runDirectory: string,
-  state: RunState,
+  run: DevelopmentRun,
   repositoryWorkflow: RepositoryWorkflow,
   services: DevelopmentServices,
 ): Promise<boolean> {
+  const state = run.state;
   const step = state.gitWorkflow?.failedStep;
 
   if (!step) {
@@ -71,18 +52,18 @@ async function resumeGitFailure(
 
   return runGitStep(
     runDirectory,
-    state,
+    run,
     () =>
       state.currentRole === null
         ? repositoryWorkflow.finalize(state)
-        : repositoryWorkflow.createFeatureBranch(state, approvedFeatureId(state)),
+        : repositoryWorkflow.createFeatureBranch(state, run.approvedFeatureId()),
     services,
   );
 }
 
 function createBranchAfterSpecification(
   runDirectory: string,
-  state: RunState,
+  run: DevelopmentRun,
   role: Role,
   repositoryWorkflow: RepositoryWorkflow,
   services: DevelopmentServices,
@@ -93,8 +74,8 @@ function createBranchAfterSpecification(
 
   return runGitStep(
     runDirectory,
-    state,
-    () => repositoryWorkflow.createFeatureBranch(state, approvedFeatureId(state)),
+    run,
+    () => repositoryWorkflow.createFeatureBranch(run.state, run.approvedFeatureId()),
     services,
   );
 }
@@ -108,20 +89,20 @@ export async function runDevelopmentTeam(
   workspaceBootstrapper: WorkspaceBootstrapper,
   repositoryWorkflow: RepositoryWorkflow = new NoRepositoryWorkflow(),
 ): Promise<RunState> {
-  const state = await services.runRepository.load(runDirectory);
-  const attempt = emptyAttemptState(state.currentRole);
+  const run = DevelopmentRun.restore(await services.runRepository.load(runDirectory));
+  const attempt = emptyAttemptState(run.state.currentRole);
 
-  if (!(await resumeGitFailure(runDirectory, state, repositoryWorkflow, services))) {
-    return state;
+  if (!(await resumeGitFailure(runDirectory, run, repositoryWorkflow, services))) {
+    return run.state;
   }
 
   try {
-    while (state.status === RunStatus.Running) {
-      assertTurnBudget(state);
+    while (run.state.status === RunStatus.Running) {
+      run.assertTurnAvailable();
       const accepted = await executeAgentTurn({
         runner,
         runDirectory,
-        state,
+        run,
         journal: specificationJournal,
         attempt,
         services,
@@ -129,7 +110,7 @@ export async function runDevelopmentTeam(
       const specificationPhase = await processSpecificationPhase({
         accepted,
         runDirectory,
-        state,
+        run,
         reviewer: specificationReviewer,
         journal: specificationJournal,
         services,
@@ -142,7 +123,7 @@ export async function runDevelopmentTeam(
       await processBootstrapPhase({
         turn: specificationPhase.turn,
         runDirectory,
-        state,
+        run,
         bootstrapper: workspaceBootstrapper,
         services,
       });
@@ -150,7 +131,7 @@ export async function runDevelopmentTeam(
         accepted,
         turn: specificationPhase.turn,
         runDirectory,
-        state,
+        run,
         services,
       });
 
@@ -160,7 +141,7 @@ export async function runDevelopmentTeam(
 
       const completed = await persistTurnTransition({
         runDirectory,
-        state,
+        run,
         role: accepted.role,
         turn: qualityPhase.turn,
         services,
@@ -169,25 +150,25 @@ export async function runDevelopmentTeam(
       if (
         !(await createBranchAfterSpecification(
           runDirectory,
-          state,
+          run,
           accepted.role,
           repositoryWorkflow,
           services,
         ))
       ) {
-        return state;
+        return run.state;
       }
 
       if (completed) {
-        await runGitStep(runDirectory, state, () => repositoryWorkflow.finalize(state), services);
+        await runGitStep(runDirectory, run, () => repositoryWorkflow.finalize(run.state), services);
 
-        return state;
+        return run.state;
       }
     }
   } catch (error) {
-    await recordFailedAttempt(runDirectory, state, attempt, error, services);
+    await recordFailedAttempt(runDirectory, run, attempt, error, services);
     throw error;
   }
 
-  return state;
+  return run.state;
 }

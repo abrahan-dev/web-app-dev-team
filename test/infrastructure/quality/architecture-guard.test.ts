@@ -1,20 +1,17 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { checkArchitecture } from "../../../src/infrastructure/quality/architecture-guard.ts";
+import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
 
-const temporaryDirectories: string[] = [];
+const temporary = new TemporaryWorkspaceManager();
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-  );
+  await temporary.cleanup();
 });
 
 test("detects forbidden layer imports, domain frameworks, cycles and misplaced tests", async () => {
-  const root = await mkdtemp(resolve(tmpdir(), "web-app-dev-team-architecture-"));
-  temporaryDirectories.push(root);
+  const root = await temporary.create("web-app-dev-team-architecture-");
   await mkdir(resolve(root, "src", "orders", "domain"), { recursive: true });
   await mkdir(resolve(root, "src", "orders", "infrastructure"), {
     recursive: true,
@@ -44,8 +41,7 @@ test("detects forbidden layer imports, domain frameworks, cycles and misplaced t
 });
 
 test("enforces context/app topology and prevents frontend persistence access", async () => {
-  const root = await mkdtemp(resolve(tmpdir(), "web-app-dev-team-topology-"));
-  temporaryDirectories.push(root);
+  const root = await temporary.create("web-app-dev-team-topology-");
   await mkdir(resolve(root, "src", "misc"), { recursive: true });
   await mkdir(resolve(root, "src", "contexts", "orders", "wrong-layer"), {
     recursive: true,

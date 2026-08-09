@@ -1,13 +1,14 @@
 import { access, appendFile, copyFile, mkdir, readFile, readdir, rename } from "node:fs/promises";
 import { basename, resolve } from "node:path";
-import { z } from "zod";
 import type { AgentRunner } from "../../application/ports/agent-runner.ts";
 import {
-  publishedSpecificationSchema,
-  roleSchema,
+  DevelopmentRun,
+  RestitutionProgress,
+  restitutionStateSchema,
   roles,
   runStateSchema,
   type PublishedSpecification,
+  type RestitutionState,
   type RunState,
 } from "../../domain/schemas.ts";
 import { Role } from "../../domain/roles.ts";
@@ -28,24 +29,6 @@ import {
 import type { SpecificationJournal } from "../../application/ports/development-services.ts";
 import { developmentServices } from "../development-services.ts";
 import { DeterministicWorkspaceBootstrapper } from "../workspace/workspace-bootstrapper.ts";
-
-const restitutionStateSchema = z.object({
-  version: z.literal(1),
-  id: z.string(),
-  workspace: z.string(),
-  sourceSpecifications: z.string(),
-  status: z.enum(RestitutionStatus),
-  specifications: z.array(publishedSpecificationSchema),
-  nextSequence: z.number().int().positive(),
-  currentSequence: z.number().int().positive().nullable(),
-  resumeRole: roleSchema.nullable(),
-  completedSequences: z.array(z.number().int().positive()),
-  maxTurnsPerSpecification: z.number().int().positive(),
-  failure: z.string().nullable(),
-  tokenTotals: runStateSchema.shape.tokenTotals,
-});
-
-export type RestitutionState = z.infer<typeof restitutionStateSchema>;
 
 const restitutionStateFile = "restitution.json";
 
@@ -153,21 +136,24 @@ export async function createRestitution(options: {
   const specifications = await installSpecificationArchive(sourceSpecifications, workspace);
   const id = `${Date.now()}-${safeId(basename(sourceSpecifications)) || "specifications"}`;
   const directory = resolve(options.runsRoot ?? workspace, ".web-app-dev-team", "restitutions", id);
-  const state = restitutionStateSchema.parse({
-    version: 1,
-    id,
-    workspace,
-    sourceSpecifications,
-    status: RestitutionStatus.Running,
-    specifications,
-    nextSequence: 1,
-    currentSequence: null,
-    resumeRole: null,
-    completedSequences: [],
-    maxTurnsPerSpecification: options.maxTurnsPerSpecification,
-    failure: null,
-    tokenTotals: emptyTokenTotals(),
-  });
+  const progress = RestitutionProgress.restore(
+    restitutionStateSchema.parse({
+      version: 1,
+      id,
+      workspace,
+      sourceSpecifications,
+      status: RestitutionStatus.Running,
+      specifications,
+      nextSequence: 1,
+      currentSequence: null,
+      resumeRole: null,
+      completedSequences: [],
+      maxTurnsPerSpecification: options.maxTurnsPerSpecification,
+      failure: null,
+      tokenTotals: emptyTokenTotals(),
+    }),
+  );
+  const state = progress.state;
 
   await mkdir(resolve(directory, "logs"), { recursive: true });
   await mkdir(resolve(directory, "results"), { recursive: true });
@@ -253,24 +239,19 @@ async function createSequenceRun(
 
 async function checkpointSequence(
   directory: string,
-  restitution: RestitutionState,
+  progress: RestitutionProgress,
   run: RunState,
 ): Promise<void> {
-  const sequence = restitution.currentSequence;
+  const sequence = progress.state.currentSequence;
 
-  if (sequence === null || run.status !== RunStatus.Completed) {
-    throw new Error("Only a completed current sequence can be checkpointed.");
+  if (sequence === null) {
+    throw new Error("A restitution checkpoint requires an active sequence.");
   }
 
   const resultPath = resolve(directory, "results", `${String(sequence).padStart(6, "0")}.json`);
   await Bun.write(resultPath, `${JSON.stringify(run, null, 2)}\n`);
-  restitution.completedSequences.push(sequence);
-  restitution.nextSequence = sequence + 1;
-  restitution.currentSequence = null;
-  restitution.resumeRole = null;
-  restitution.failure = null;
-  restitution.tokenTotals = run.tokenTotals;
-  await saveRestitutionState(directory, restitution);
+  progress.checkpoint(run);
+  await saveRestitutionState(directory, progress.state);
 }
 
 async function reportProgress(directory: string, message: string): Promise<void> {
@@ -282,52 +263,36 @@ async function reportProgress(directory: string, message: string): Promise<void>
   );
 }
 
-function nextSpecification(restitution: RestitutionState): PublishedSpecification {
-  const target = restitution.specifications[restitution.nextSequence - 1];
-
-  if (!target || target.sequence !== restitution.nextSequence) {
-    throw new Error(`Missing specification sequence ${restitution.nextSequence}.`);
-  }
-
-  return target;
-}
-
 async function beginRestitution(
   directory: string,
   maxTurnsOverride?: number,
-): Promise<{ restitution: RestitutionState; recoveringActiveRun: boolean }> {
-  const restitution = await loadRestitutionState(directory);
-  const recoveringActiveRun =
-    restitution.status === RestitutionStatus.Running && restitution.currentSequence !== null;
-
-  if (maxTurnsOverride !== undefined) {
-    restitution.maxTurnsPerSpecification = maxTurnsOverride;
-  }
-
-  restitution.status = RestitutionStatus.Running;
-  restitution.failure = null;
+): Promise<{ progress: RestitutionProgress; recoveringActiveRun: boolean }> {
+  const progress = RestitutionProgress.restore(await loadRestitutionState(directory));
+  const recoveringActiveRun = progress.begin(maxTurnsOverride);
+  const restitution = progress.state;
   await saveRestitutionState(directory, restitution);
   await reportProgress(
     directory,
     `Restitution running: ${restitution.completedSequences.length}/${restitution.specifications.length} specifications completed.`,
   );
 
-  return { restitution, recoveringActiveRun };
+  return { progress, recoveringActiveRun };
 }
 
 async function verifyJournalBeforeSequence(
   directory: string,
-  restitution: RestitutionState,
+  progress: RestitutionProgress,
   target: PublishedSpecification,
   journal: SpecificationJournal,
 ): Promise<boolean> {
+  const restitution = progress.state;
+
   try {
     await journal.verify(restitution.workspace);
 
     return true;
   } catch (error) {
-    restitution.status = RestitutionStatus.Interrupted;
-    restitution.failure = error instanceof Error ? error.message : String(error);
+    progress.interrupt(error instanceof Error ? error.message : String(error), null);
     await saveRestitutionState(directory, restitution);
     await reportProgress(
       directory,
@@ -340,64 +305,69 @@ async function verifyJournalBeforeSequence(
 
 async function recoverUncleanRun(
   directory: string,
-  restitution: RestitutionState,
+  progress: RestitutionProgress,
   target: PublishedSpecification,
-  run: RunState,
-): Promise<void> {
-  if (run.currentRole !== null) {
-    run.interruptions.push({
-      sequence: run.interruptions.length + 1,
-      role: run.currentRole,
-      turn: run.turns + 1,
-      createdAt: new Date().toISOString(),
-      reason: "The restitution controller stopped before this turn completed.",
-      logPath: `logs/${run.currentRole}.log`,
-    });
-    await saveRunState(directory, run);
+  state: RunState,
+): Promise<RunState> {
+  const restitution = progress.state;
+  const run = DevelopmentRun.restore(state);
+
+  if (run.state.currentRole !== null) {
+    run.recordInterruption(
+      run.state.currentRole,
+      "The restitution controller stopped before this turn completed.",
+    );
+    await saveRunState(directory, run.state);
   }
 
-  restitution.resumeRole = run.currentRole;
+  progress.recover(run.state.currentRole);
   await saveRestitutionState(directory, restitution);
   await reportProgress(
     directory,
-    `[${target.sequence}/${restitution.specifications.length}] Recovering ${target.featureId} at agent ${run.currentRole ?? "unknown"} after an unclean stop.`,
+    `[${target.sequence}/${restitution.specifications.length}] Recovering ${target.featureId} at agent ${run.state.currentRole ?? "unknown"} after an unclean stop.`,
   );
+
+  return run.state;
 }
 
 async function resumeFailedRun(
   directory: string,
-  restitution: RestitutionState,
+  progress: RestitutionProgress,
   target: PublishedSpecification,
-  run: RunState,
-): Promise<void> {
-  if (run.currentRole === null) {
+  state: RunState,
+): Promise<RunState> {
+  const restitution = progress.state;
+  const run = DevelopmentRun.restore(state);
+
+  if (run.state.currentRole === null) {
     throw new Error(`Sequence ${target.sequence} has no resumable agent role.`);
   }
 
-  run.status = RunStatus.Running;
-  run.failure = null;
-  run.maxTurns = Math.max(run.maxTurns, restitution.maxTurnsPerSpecification);
-  await saveRunState(directory, run);
-  restitution.resumeRole = run.currentRole;
+  run.resume(restitution.maxTurnsPerSpecification);
+  await saveRunState(directory, run.state);
+  progress.recover(run.state.currentRole);
   await saveRestitutionState(directory, restitution);
   await reportProgress(
     directory,
-    `[${target.sequence}/${restitution.specifications.length}] Resuming ${target.featureId} at agent ${run.currentRole}.`,
+    `[${target.sequence}/${restitution.specifications.length}] Resuming ${target.featureId} at agent ${run.state.currentRole}.`,
   );
+
+  return run.state;
 }
 
 async function startSequenceRun(
   directory: string,
-  restitution: RestitutionState,
+  progress: RestitutionProgress,
   target: PublishedSpecification,
 ): Promise<RunState> {
+  const restitution = progress.state;
+
   await reportProgress(
     directory,
     `[${target.sequence}/${restitution.specifications.length}] Starting ${target.featureId}; ${restitution.completedSequences.length} completed.`,
   );
   const run = await createSequenceRun(directory, restitution, target);
-  restitution.currentSequence = target.sequence;
-  restitution.resumeRole = Role.Architect;
+  progress.startSequence(target.sequence, Role.Architect);
   await saveRestitutionState(directory, restitution);
 
   return run;
@@ -405,22 +375,24 @@ async function startSequenceRun(
 
 async function prepareSequenceRun(
   directory: string,
-  restitution: RestitutionState,
+  progress: RestitutionProgress,
   target: PublishedSpecification,
   recoveringActiveRun: boolean,
 ): Promise<RunState> {
+  const restitution = progress.state;
+
   if (restitution.currentSequence !== target.sequence) {
-    return startSequenceRun(directory, restitution, target);
+    return startSequenceRun(directory, progress, target);
   }
 
-  const run = await loadRunState(directory);
+  let run = await loadRunState(directory);
 
   if (recoveringActiveRun && run.status === RunStatus.Running) {
-    await recoverUncleanRun(directory, restitution, target, run);
+    run = await recoverUncleanRun(directory, progress, target, run);
   }
 
   if (run.status === RunStatus.Failed) {
-    await resumeFailedRun(directory, restitution, target, run);
+    run = await resumeFailedRun(directory, progress, target, run);
   }
 
   return run;
@@ -428,15 +400,14 @@ async function prepareSequenceRun(
 
 async function interruptSequence(
   directory: string,
-  restitution: RestitutionState,
+  progress: RestitutionProgress,
   target: PublishedSpecification,
   error: unknown,
 ): Promise<void> {
   const failedRun = await loadRunState(directory);
-  restitution.status = RestitutionStatus.Interrupted;
-  restitution.failure = error instanceof Error ? error.message : String(error);
-  restitution.resumeRole = failedRun.currentRole;
-  restitution.tokenTotals = failedRun.tokenTotals;
+  const failure = error instanceof Error ? error.message : String(error);
+  progress.interrupt(failure, failedRun.currentRole, failedRun.tokenTotals);
+  const restitution = progress.state;
   await saveRestitutionState(directory, restitution);
   await reportProgress(
     directory,
@@ -446,7 +417,7 @@ async function interruptSequence(
 
 async function executeSequence(
   directory: string,
-  restitution: RestitutionState,
+  progress: RestitutionProgress,
   target: PublishedSpecification,
   run: RunState,
   runner: AgentRunner,
@@ -466,17 +437,15 @@ async function executeSequence(
       new DeterministicWorkspaceBootstrapper(),
     );
   } catch (error) {
-    await interruptSequence(directory, restitution, target, error);
+    await interruptSequence(directory, progress, target, error);
 
     return null;
   }
 }
 
-async function finishRestitution(directory: string, restitution: RestitutionState): Promise<void> {
-  restitution.status = RestitutionStatus.Completed;
-  restitution.currentSequence = null;
-  restitution.resumeRole = null;
-  restitution.failure = null;
+async function finishRestitution(directory: string, progress: RestitutionProgress): Promise<void> {
+  progress.complete();
+  const restitution = progress.state;
   await saveRestitutionState(directory, restitution);
   await reportProgress(
     directory,
@@ -490,35 +459,31 @@ export async function runRestitution(
   journal: SpecificationJournal = new FileSpecificationJournal(),
   maxTurnsOverride?: number,
 ): Promise<RestitutionState> {
-  const { restitution, recoveringActiveRun } = await beginRestitution(directory, maxTurnsOverride);
+  const { progress, recoveringActiveRun } = await beginRestitution(directory, maxTurnsOverride);
+  const restitution = progress.state;
 
   while (restitution.nextSequence <= restitution.specifications.length) {
-    const target = nextSpecification(restitution);
+    const target = progress.nextSpecification();
 
-    if (!(await verifyJournalBeforeSequence(directory, restitution, target, journal))) {
+    if (!(await verifyJournalBeforeSequence(directory, progress, target, journal))) {
       return restitution;
     }
 
-    const preparedRun = await prepareSequenceRun(
-      directory,
-      restitution,
-      target,
-      recoveringActiveRun,
-    );
-    const run = await executeSequence(directory, restitution, target, preparedRun, runner, journal);
+    const preparedRun = await prepareSequenceRun(directory, progress, target, recoveringActiveRun);
+    const run = await executeSequence(directory, progress, target, preparedRun, runner, journal);
 
     if (!run) {
       return restitution;
     }
 
-    await checkpointSequence(directory, restitution, run);
+    await checkpointSequence(directory, progress, run);
     await reportProgress(
       directory,
       `[${target.sequence}/${restitution.specifications.length}] Completed ${target.featureId}; ${restitution.completedSequences.length}/${restitution.specifications.length} done.`,
     );
   }
 
-  await finishRestitution(directory, restitution);
+  await finishRestitution(directory, progress);
 
   return restitution;
 }

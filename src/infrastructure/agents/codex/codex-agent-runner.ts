@@ -19,6 +19,27 @@ import {
 import { buildAgentPrompt } from "../prompt-builder.ts";
 import { consumeCodexJsonl } from "./codex-jsonl.ts";
 
+interface CodexProcess {
+  stdin: {
+    write(value: string): unknown;
+    end(): unknown;
+  };
+  stdout: ReadableStream<Uint8Array>;
+  stderr: ReadableStream<Uint8Array>;
+  exited: Promise<number>;
+}
+
+export type CodexProcessSpawner = (command: string[], workspace: string) => CodexProcess;
+export type AgentPromptBuilder = (context: AgentContext) => Promise<string>;
+
+const spawnCodexProcess: CodexProcessSpawner = (command, workspace) =>
+  Bun.spawn(command, {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+    cwd: workspace,
+  });
+
 async function pipeToLog(stream: ReadableStream<Uint8Array>, logPath: string): Promise<void> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
@@ -41,6 +62,11 @@ async function pipeToLog(stream: ReadableStream<Uint8Array>, logPath: string): P
 }
 
 export class CodexAgentRunner implements AgentRunner {
+  constructor(
+    private readonly spawn: CodexProcessSpawner = spawnCodexProcess,
+    private readonly promptBuilder: AgentPromptBuilder = buildAgentPrompt,
+  ) {}
+
   async run(context: AgentContext) {
     const { role, state, runDirectory } = context;
     const logPath = resolve(runDirectory, "logs", `${role}.log`);
@@ -74,13 +100,8 @@ export class CodexAgentRunner implements AgentRunner {
     }
 
     args.push("-");
-    const child = Bun.spawn(["codex", ...args], {
-      stdin: "pipe",
-      stdout: "pipe",
-      stderr: "pipe",
-      cwd: state.workspace,
-    });
-    child.stdin.write(await buildAgentPrompt(context));
+    const child = this.spawn(["codex", ...args], state.workspace);
+    child.stdin.write(await this.promptBuilder(context));
     child.stdin.end();
 
     const [telemetry] = await Promise.all([

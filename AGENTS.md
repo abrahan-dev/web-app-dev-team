@@ -1,5 +1,10 @@
 # Repository Instructions
 
+## Repository context
+
+Read the root `README.md` before you act on this repository. Read a directory
+`README.md` before you change files in that directory.
+
 ## Language
 
 Write all responses for this repository in ASD-STE100 Simplified Technical

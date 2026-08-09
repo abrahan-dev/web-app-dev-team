@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Role } from "../../../src/domain/roles.ts";
 import {
@@ -8,18 +7,16 @@ import {
   runQualityGate,
 } from "../../../src/infrastructure/quality/quality-gate.ts";
 import { inspectWorkspace } from "../../../src/infrastructure/workspace/workspace-inspector.ts";
+import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
 
-const temporaryDirectories: string[] = [];
+const temporary = new TemporaryWorkspaceManager();
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-  );
+  await temporary.cleanup();
 });
 
 async function workspace(scripts: Record<string, string>): Promise<string> {
-  const path = await mkdtemp(resolve(tmpdir(), "web-app-dev-team-quality-gate-"));
-  temporaryDirectories.push(path);
+  const path = await temporary.create("web-app-dev-team-quality-gate-");
   await writeFile(resolve(path, "bun.lock"), "");
   await writeFile(resolve(path, "package.json"), JSON.stringify({ scripts }));
 

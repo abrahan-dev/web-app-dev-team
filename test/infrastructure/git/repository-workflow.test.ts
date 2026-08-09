@@ -1,7 +1,4 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { resolve } from "node:path";
 import type {
   GitCommandResult,
   GitCommandRunner,
@@ -10,14 +7,13 @@ import type {
 } from "../../../src/application/ports/repository-workflow.ts";
 import { DeterministicRepositoryWorkflow } from "../../../src/infrastructure/git/repository-workflow.ts";
 import { createRunState } from "../../../src/infrastructure/persistence/file-run-store.ts";
-import { GitWorkflowStatus } from "../../../src/domain/workflow-values.ts";
+import { gitWorkflowStateFactory } from "../../support/domain-factories.ts";
+import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
 
-const temporaryDirectories: string[] = [];
+const temporary = new TemporaryWorkspaceManager();
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
-  );
+  await temporary.cleanup();
 });
 
 class FakeGitRunner implements GitCommandRunner {
@@ -38,10 +34,7 @@ class FakeGitRunner implements GitCommandRunner {
 }
 
 async function workspace(): Promise<string> {
-  const path = await mkdtemp(resolve(tmpdir(), "web-app-dev-team-git-"));
-  temporaryDirectories.push(path);
-
-  return path;
+  return temporary.create("web-app-dev-team-git-");
 }
 
 describe("deterministic repository workflow", () => {
@@ -118,20 +111,7 @@ describe("deterministic repository workflow", () => {
       workspace: root,
       runsRoot: root,
       maxTurns: 12,
-      gitWorkflow: {
-        status: GitWorkflowStatus.Prepared,
-        remote: "origin",
-        remoteUrl: "git@github.com:example/business-app.git",
-        baseBranch: "main",
-        baseCommit: "base-sha",
-        featureBranch: null,
-        featureId: null,
-        commitSha: null,
-        pushedAt: null,
-        pullRequestUrl: null,
-        failedStep: null,
-        failure: null,
-      },
+      gitWorkflow: gitWorkflowStateFactory(),
     });
 
     await workflow.createFeatureBranch(created.state, "approve-orders");

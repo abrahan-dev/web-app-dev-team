@@ -25,7 +25,8 @@ import {
 } from "../../infrastructure/terminal/tmux.ts";
 import { TerminalSpecificationReviewer } from "./terminal-specification-reviewer.ts";
 
-type CommandHandler = (arguments_: CliArguments) => Promise<void>;
+export type CommandHandler = (arguments_: CliArguments) => Promise<void>;
+export type CommandHandlers = Record<string, CommandHandler>;
 
 export class CliArguments {
   constructor(private readonly values: string[]) {}
@@ -71,7 +72,7 @@ export function parseMaxTurns(raw: string): number {
   return parsed;
 }
 
-function tokenSummary(totals: TokenTotals): string {
+export function tokenSummary(totals: TokenTotals): string {
   const count = (value: number): string => new Intl.NumberFormat("en-US").format(value);
 
   return [
@@ -123,7 +124,7 @@ async function executeRun(runDirectory: string, demo = false, tmuxSession?: stri
   printGitSummary(result, runDirectory);
 }
 
-function specificationsDirectory(path: string): string {
+export function specificationsDirectory(path: string): string {
   const absolute = resolve(path);
 
   return basename(absolute) === "manifest.json" ? dirname(absolute) : absolute;
@@ -302,7 +303,7 @@ async function startDevelopment(arguments_: CliArguments, demo: boolean): Promis
   }
 }
 
-const commandHandlers: Record<string, CommandHandler> = {
+const commandHandlers: CommandHandlers = {
   "restore-status": restoreStatus,
   "restore-resume": restoreResume,
   restore: (arguments_) => launchRestitution(arguments_, false),
@@ -313,9 +314,12 @@ const commandHandlers: Record<string, CommandHandler> = {
   demo: (arguments_) => startDevelopment(arguments_, true),
 };
 
-export async function runCli(values = process.argv): Promise<void> {
+export async function runCli(
+  values = process.argv,
+  handlers: CommandHandlers = commandHandlers,
+): Promise<void> {
   const arguments_ = new CliArguments(values);
-  const handler = commandHandlers[arguments_.command];
+  const handler = handlers[arguments_.command];
 
   if (!handler) {
     throw new Error(

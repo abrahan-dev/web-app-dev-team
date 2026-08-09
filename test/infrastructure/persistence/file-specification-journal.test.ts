@@ -1,27 +1,23 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { SpecifierTurn } from "../../../src/domain/schemas.ts";
 import { Role } from "../../../src/domain/roles.ts";
 import { TurnDecision } from "../../../src/domain/workflow-values.ts";
-import { FileSpecificationJournal } from "../../../src/infrastructure/persistence/file-specification-journal.ts";
+import {
+  FileSpecificationJournal,
+  InMemorySpecificationJournal,
+} from "../../../src/infrastructure/persistence/file-specification-journal.ts";
+import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
 
-const temporaryDirectories: string[] = [];
+const temporary = new TemporaryWorkspaceManager();
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
+  await temporary.cleanup();
 });
 
 async function workspace(): Promise<string> {
-  const directory = await mkdtemp(resolve(tmpdir(), "specification-journal-"));
-  temporaryDirectories.push(directory);
-
-  return directory;
+  return temporary.create("specification-journal-");
 }
 
 function specification(featureId: string): SpecifierTurn {
@@ -93,5 +89,21 @@ describe("specification journal", () => {
     await Bun.write(resolve(root, published.path), "tampered\n");
 
     await expect(journal.verify(root)).rejects.toThrow("Specification integrity check failed");
+  });
+
+  test("keeps the in-memory demo journal idempotent", async () => {
+    const journal = new InMemorySpecificationJournal();
+    const request = {
+      workspace: "/unused",
+      sourceReviewId: "review-1",
+      specification: specification("account-registration"),
+    };
+
+    const first = await journal.publish(request);
+    const repeated = await journal.publish(request);
+
+    expect(repeated).toEqual(first);
+    expect(first.sequence).toBe(1);
+    await expect(journal.verify()).resolves.toBeUndefined();
   });
 });

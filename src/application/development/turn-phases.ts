@@ -2,17 +2,13 @@ import {
   specificationReviewDecisionSchema,
   specifierTurnSchema,
   type AgentTurn,
-  type Handoff,
+  type DevelopmentRun,
   type LocalCheck,
   type RunState,
   type SpecificationReview,
 } from "../../domain/schemas.ts";
 import { Role } from "../../domain/roles.ts";
-import {
-  RunStatus,
-  SpecificationReviewDecision,
-  TurnDecision,
-} from "../../domain/workflow-values.ts";
+import { SpecificationReviewDecision, TurnDecision } from "../../domain/workflow-values.ts";
 import { validateGherkin } from "../../domain/specification/gherkin-validator.ts";
 import {
   type DevelopmentServices,
@@ -28,12 +24,9 @@ export interface TurnPhaseResult {
   repeatRole: boolean;
 }
 
-function handoffId(state: RunState): string {
-  return `${state.id}-${String(state.messages.length).padStart(4, "0")}`;
-}
-
 function gherkinCheck(
   state: RunState,
+  sequence: number,
   specification: string,
 ): {
   check: LocalCheck;
@@ -44,7 +37,7 @@ function gherkinCheck(
   return {
     featureId: validation.featureId,
     check: {
-      sequence: state.localChecks.length + 1,
+      sequence,
       turn: state.turns,
       role: Role.Specifier,
       kind: "gherkin",
@@ -62,12 +55,12 @@ function gherkinCheck(
 
 async function repeatSpecifier(
   runDirectory: string,
-  state: RunState,
+  run: DevelopmentRun,
   turn: AgentTurn,
   services: DevelopmentServices,
 ): Promise<TurnPhaseResult> {
-  state.currentRole = Role.Specifier;
-  await services.runRepository.save(runDirectory, state);
+  run.repeatRole(Role.Specifier);
+  await services.runRepository.save(runDirectory, run.state);
 
   return { turn, repeatRole: true };
 }
@@ -75,25 +68,26 @@ async function repeatSpecifier(
 export async function processSpecificationPhase(options: {
   accepted: AcceptedTurn;
   runDirectory: string;
-  state: RunState;
+  run: DevelopmentRun;
   reviewer: SpecificationReviewer;
   journal: SpecificationJournal;
   services: DevelopmentServices;
 }): Promise<TurnPhaseResult> {
-  const { accepted, runDirectory, state, reviewer, journal, services } = options;
+  const { accepted, runDirectory, run, reviewer, journal, services } = options;
+  const state = run.state;
 
   if (accepted.role !== Role.Specifier) {
     return { turn: accepted.turn, repeatRole: false };
   }
 
   let specification = specifierTurnSchema.parse(accepted.turn);
-  const validation = gherkinCheck(state, specification.specification);
-  state.localChecks.push(validation.check);
+  const validation = gherkinCheck(state, run.nextCheckSequence(), specification.specification);
+  run.recordCheck(validation.check);
   await services.runRepository.save(runDirectory, state);
   await services.operatorLog.localCheck(runDirectory, state, validation.check);
 
   if (!validation.check.passed || !validation.featureId) {
-    return repeatSpecifier(runDirectory, state, specification, services);
+    return repeatSpecifier(runDirectory, run, specification, services);
   }
 
   specification = { ...specification, featureId: validation.featureId };
@@ -101,9 +95,7 @@ export async function processSpecificationPhase(options: {
   const decision = specificationReviewDecisionSchema.parse(
     await reviewer.review({ state, specification }),
   );
-  const reviewId = `${state.id}-specification-${String(
-    state.specificationReviews.length + 1,
-  ).padStart(4, "0")}`;
+  const reviewId = run.nextReviewId();
   const reviewBase = {
     id: reviewId,
     createdAt: new Date().toISOString(),
@@ -116,10 +108,10 @@ export async function processSpecificationPhase(options: {
       ...decision,
       publishedSpecification: null,
     };
-    state.specificationReviews.push(review);
+    run.recordReview(review);
     await services.operatorLog.specificationReview(runDirectory, review);
 
-    return repeatSpecifier(runDirectory, state, specification, services);
+    return repeatSpecifier(runDirectory, run, specification, services);
   }
 
   const publishedSpecification = await journal.publish({
@@ -133,7 +125,7 @@ export async function processSpecificationPhase(options: {
     ...decision,
     publishedSpecification,
   };
-  state.specificationReviews.push(review);
+  run.recordReview(review);
   await services.operatorLog.specificationReview(runDirectory, review);
 
   return {
@@ -148,11 +140,12 @@ export async function processSpecificationPhase(options: {
 export async function processBootstrapPhase(options: {
   turn: AgentTurn;
   runDirectory: string;
-  state: RunState;
+  run: DevelopmentRun;
   bootstrapper: WorkspaceBootstrapper;
   services: DevelopmentServices;
 }): Promise<void> {
-  const { turn, runDirectory, state, bootstrapper, services } = options;
+  const { turn, runDirectory, run, bootstrapper, services } = options;
+  const state = run.state;
 
   if (
     turn.role !== Role.Architect ||
@@ -163,7 +156,7 @@ export async function processBootstrapPhase(options: {
   }
 
   const bootstrap = await bootstrapper.bootstrap(state.workspace, turn.changePlan);
-  state.workspaceBootstrap = bootstrap;
+  run.recordBootstrap(bootstrap);
   await services.workspaceInventory.refresh(state.workspace, runDirectory);
   await services.runRepository.save(runDirectory, state);
   await services.operatorLog.workspaceBootstrap(runDirectory, state, bootstrap);
@@ -173,10 +166,11 @@ export async function processQualityPhase(options: {
   accepted: AcceptedTurn;
   turn: AgentTurn;
   runDirectory: string;
-  state: RunState;
+  run: DevelopmentRun;
   services: DevelopmentServices;
 }): Promise<TurnPhaseResult> {
-  const { accepted, runDirectory, state, services } = options;
+  const { accepted, runDirectory, run, services } = options;
+  const state = run.state;
   let { turn } = options;
 
   if (!isCodeWritingRole(accepted.role) || turn.nextRole === Role.Architect) {
@@ -191,11 +185,11 @@ export async function processQualityPhase(options: {
       state.workspace,
     ),
     turn: state.turns,
-    sequence: state.localChecks.length + 1,
+    sequence: run.nextCheckSequence(),
     role: accepted.role,
     runScripts: turn.nextRole === Role.Qa,
   });
-  state.localChecks.push(gate);
+  run.recordCheck(gate);
   turn = {
     ...turn,
     evidence: [
@@ -209,7 +203,7 @@ export async function processQualityPhase(options: {
   await services.operatorLog.localCheck(runDirectory, state, gate);
 
   if (!gate.passed) {
-    state.currentRole = accepted.role;
+    run.repeatRole(accepted.role);
     await services.runRepository.save(runDirectory, state);
 
     return { turn, repeatRole: true };
@@ -218,47 +212,17 @@ export async function processQualityPhase(options: {
   return { turn, repeatRole: false };
 }
 
-function handoff(state: RunState, from: Role, to: Role | null, turn: AgentTurn): Handoff {
-  return {
-    id: handoffId(state),
-    sequence: state.messages.length,
-    from,
-    to,
-    createdAt: new Date().toISOString(),
-    turn,
-  };
-}
-
 export async function persistTurnTransition(options: {
   runDirectory: string;
-  state: RunState;
+  run: DevelopmentRun;
   role: Role;
   turn: AgentTurn;
   services: DevelopmentServices;
 }): Promise<boolean> {
-  const { runDirectory, state, role, turn, services } = options;
-
-  if (turn.decision === TurnDecision.Complete) {
-    const completion = handoff(state, role, null, turn);
-    state.messages.push(completion);
-    state.status = RunStatus.Completed;
-    state.currentRole = null;
-    state.finalSummary = turn.summary;
-    await services.runRepository.save(runDirectory, state);
-    await services.operatorLog.handoff(runDirectory, completion);
-
-    return true;
-  }
-
-  if (turn.nextRole === null) {
-    throw new Error("Validated handoff unexpectedly has no recipient.");
-  }
-
-  const message = handoff(state, role, turn.nextRole, turn);
-  state.messages.push(message);
-  state.currentRole = turn.nextRole;
-  await services.runRepository.save(runDirectory, state);
+  const { runDirectory, run, role, turn, services } = options;
+  const message = run.transition(role, turn);
+  await services.runRepository.save(runDirectory, run.state);
   await services.operatorLog.handoff(runDirectory, message);
 
-  return false;
+  return turn.decision === TurnDecision.Complete;
 }

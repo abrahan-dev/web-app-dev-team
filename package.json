@@ -16,6 +16,7 @@
     "complexity": "eslint src --rule 'complexity: [\"error\", 10]'",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "test:coverage": "bun test --coverage",
     "check": "bun run format:check && bun run typecheck && bun run complexity && bun run test"
   },
   "dependencies": {

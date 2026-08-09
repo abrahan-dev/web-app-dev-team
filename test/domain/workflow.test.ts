@@ -86,6 +86,38 @@ describe("deterministic specialized workflow", () => {
       ),
     ).toThrow("failureOwner");
   });
+
+  test.each([
+    [
+      "completion with a next role",
+      Role.Qa,
+      turn(Role.Architect, TurnDecision.Complete),
+      "completion has no next role",
+    ],
+    [
+      "completion with a failure owner",
+      Role.Qa,
+      turn(null, TurnDecision.Complete, Role.BackendCoder),
+      "cannot name a failure owner",
+    ],
+    [
+      "completion with failures",
+      Role.Qa,
+      { ...turn(null, TurnDecision.Complete), failures: ["Still broken."] },
+      "failures remain",
+    ],
+    ["handoff without a role", Role.Architect, turn(null), "must name its next role"],
+    ["specifier skips architect", Role.Specifier, turn(Role.Qa), "specifier cannot hand off"],
+    ["QA feedback without failures", Role.Qa, turn(Role.BackendCoder), "concrete failure"],
+    [
+      "implementation without a plan",
+      Role.BackendCoder,
+      turn(Role.FrontendCoder),
+      "technical change plan",
+    ],
+  ])("rejects %s", (_label, from, decision, expected) => {
+    expect(() => validateTransition(from, decision)).toThrow(expected);
+  });
 });
 
 test("restitution cannot return an approved specification to the specifier", () => {

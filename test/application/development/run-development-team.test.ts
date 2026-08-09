@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { AgentContext, AgentRunner } from "../../../src/application/ports/agent-runner.ts";
 import { ScriptedAgentRunner } from "../../../src/infrastructure/agents/scripted/scripted-agent-runner.ts";
@@ -10,7 +9,6 @@ import {
   RunStatus,
   SpecificationReviewDecision,
   TurnDecision,
-  GitWorkflowStatus,
   GitWorkflowStep,
 } from "../../../src/domain/workflow-values.ts";
 import type { RepositoryWorkflow } from "../../../src/application/ports/repository-workflow.ts";
@@ -31,20 +29,18 @@ import type {
 } from "../../../src/application/ports/development-services.ts";
 import { developmentServices } from "../../../src/infrastructure/development-services.ts";
 import { DeterministicWorkspaceBootstrapper } from "../../../src/infrastructure/workspace/workspace-bootstrapper.ts";
+import { DevelopmentTeamHarness } from "../../support/development-team-harness.ts";
+import { gitWorkflowStateFactory } from "../../support/domain-factories.ts";
+import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
 
-const temporaryDirectories: string[] = [];
+const temporary = new TemporaryWorkspaceManager();
 
 afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map((directory) => rm(directory, { recursive: true, force: true })),
-  );
+  await temporary.cleanup();
 });
 
 async function newRun(maxTurns = 12): Promise<string> {
-  const root = await mkdtemp(resolve(tmpdir(), "web-app-dev-team-"));
-  temporaryDirectories.push(root);
+  const root = await temporary.create();
   await writeFile(resolve(root, "README.md"), "# Existing test project\n");
   const created = await createRunState({
     prompt: "Build a small feature",
@@ -79,20 +75,7 @@ describe("development team orchestration", () => {
   test("creates the feature branch after approval and finalizes Git after QA", async () => {
     const directory = await newRun();
     const state = await loadRunState(directory);
-    state.gitWorkflow = {
-      status: GitWorkflowStatus.Prepared,
-      remote: "origin",
-      remoteUrl: "git@github.com:example/business-app.git",
-      baseBranch: "main",
-      baseCommit: "base-sha",
-      featureBranch: null,
-      featureId: null,
-      commitSha: null,
-      pushedAt: null,
-      pullRequestUrl: null,
-      failedStep: null,
-      failure: null,
-    };
+    state.gitWorkflow = gitWorkflowStateFactory();
     await saveRunState(directory, state);
     const events: string[] = [];
     const workflow: RepositoryWorkflow = {
@@ -129,20 +112,7 @@ describe("development team orchestration", () => {
   test("retries a failed final Git step without another agent turn", async () => {
     const directory = await newRun();
     const state = await loadRunState(directory);
-    state.gitWorkflow = {
-      status: GitWorkflowStatus.Prepared,
-      remote: "origin",
-      remoteUrl: "git@github.com:example/business-app.git",
-      baseBranch: "main",
-      baseCommit: "base-sha",
-      featureBranch: null,
-      featureId: null,
-      commitSha: null,
-      pushedAt: null,
-      pullRequestUrl: null,
-      failedStep: null,
-      failure: null,
-    };
+    state.gitWorkflow = gitWorkflowStateFactory();
     await saveRunState(directory, state);
     let finalizationAttempts = 0;
     const workflow: RepositoryWorkflow = {
@@ -188,13 +158,8 @@ describe("development team orchestration", () => {
   });
 
   test("persists every handoff and completes only after QA", async () => {
-    const directory = await newRun();
-    const result = await runDevelopmentTeam(
-      new ScriptedAgentRunner(),
-      directory,
-      new AutomaticSpecificationReviewer(),
-      new FileSpecificationJournal(),
-    );
+    const harness = await DevelopmentTeamHarness.create(temporary);
+    const result = await harness.run();
 
     expect(result.status).toBe(RunStatus.Completed);
     expect(result.turns).toBe(7);
@@ -218,7 +183,7 @@ describe("development team orchestration", () => {
     expect(result.specificationReviews[0]?.publishedSpecification?.path).toBe(
       "specifications/000001-deliver-a-generic-feature.feature",
     );
-    expect((await loadRunState(directory)).finalSummary).toContain("passed");
+    expect((await loadRunState(harness.runDirectory)).finalSummary).toContain("passed");
   });
 
   test("persists token totals and renders readable loop and handoff information", async () => {
