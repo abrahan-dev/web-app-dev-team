@@ -24,6 +24,24 @@ export interface TurnPhaseResult {
   repeatRole: boolean;
 }
 
+function requiresCoverage(role: Role, turn: AgentTurn): boolean {
+  return (
+    role === Role.BackendCoder ||
+    role === Role.FrontendCoder ||
+    (role === Role.Qa && turn.decision === TurnDecision.Complete)
+  );
+}
+
+function requiresQualityGate(role: Role, turn: AgentTurn): boolean {
+  return (
+    turn.nextRole !== Role.Architect && (isCodeWritingRole(role) || requiresCoverage(role, turn))
+  );
+}
+
+function requiresAllScripts(role: Role, turn: AgentTurn): boolean {
+  return isCodeWritingRole(role) && turn.nextRole === Role.Qa;
+}
+
 function gherkinCheck(
   state: RunState,
   sequence: number,
@@ -172,8 +190,9 @@ export async function processQualityPhase(options: {
   const { accepted, runDirectory, run, services } = options;
   const state = run.state;
   let { turn } = options;
+  const coverageRequired = requiresCoverage(accepted.role, turn);
 
-  if (!isCodeWritingRole(accepted.role) || turn.nextRole === Role.Architect) {
+  if (!requiresQualityGate(accepted.role, turn)) {
     return { turn, repeatRole: false };
   }
 
@@ -187,7 +206,8 @@ export async function processQualityPhase(options: {
     turn: state.turns,
     sequence: run.nextCheckSequence(),
     role: accepted.role,
-    runScripts: turn.nextRole === Role.Qa,
+    runScripts: requiresAllScripts(accepted.role, turn),
+    runCoverage: coverageRequired,
   });
   run.recordCheck(gate);
   turn = {

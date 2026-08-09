@@ -55,6 +55,7 @@ export interface QualityGateOptions {
   sequence: number;
   role: Role;
   runScripts?: boolean;
+  runCoverage?: boolean;
 }
 
 export interface QualityGate {

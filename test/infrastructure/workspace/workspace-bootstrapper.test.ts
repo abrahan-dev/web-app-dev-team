@@ -65,6 +65,7 @@ describe("deterministic workspace bootstrapper", () => {
     ]);
     expect(result.createdFiles).toContain("src/contexts/purchasing/domain/.gitkeep");
     expect(result.createdFiles).toContain(".github/workflows/ci.yml");
+    expect(result.createdFiles).toContain("bunfig.toml");
     expect(result.createdFiles).toContain("src/apps/purchase-orders/backend/server.ts");
     expect(result.createdFiles).toContain("src/apps/purchase-orders/frontend/main.tsx");
     expect(result.createdFiles).toContain("test/apps/purchase-orders/backend/server.test.ts");
@@ -85,6 +86,7 @@ describe("deterministic workspace bootstrapper", () => {
     expect(workflow).toContain("bun run lint");
     expect(workflow).toContain("bun run typecheck");
     expect(workflow).toContain("bun run test");
+    expect(workflow).toContain("bun run test:coverage");
     expect(workflow).toContain("bunx playwright install --with-deps chromium");
     expect(workflow).toContain("bun run test:e2e");
   });

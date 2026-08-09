@@ -35,6 +35,11 @@ user input after a recoverable failure.
 
 Use semantic HTML and labeled controls. Support keyboard operation and
 predictable focus. Use existing components and design tokens.
+Keep line, function, and statement coverage at or above the configured limits.
+
+Give first priority to business rules and pure functions. Test pure state
+changes, validation, and formatting directly. Test components through visible
+behavior. Do not test component internals.
 
 Do not create a second design system.
 

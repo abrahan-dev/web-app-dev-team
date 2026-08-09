@@ -35,6 +35,7 @@ function packageJson(plan: ChangePlan): string {
     lint: "oxlint src test",
     typecheck: "tsc --noEmit",
     test: "bun test",
+    "test:coverage": "bun test --coverage",
   };
 
   if (plan.backendRequired) {
@@ -140,6 +141,7 @@ export function webAppTemplate(plan: ChangePlan): Record<string, string> {
     ".github/workflows/ci.yml": continuousIntegrationWorkflow(plan),
     ".data/.gitkeep": "",
     ".gitignore": template("base/gitignore.tmpl"),
+    "bunfig.toml": template("base/bunfig.toml.tmpl"),
     "package.json": packageJson(plan),
     "test/.gitkeep": "",
     "tsconfig.json": template("base/tsconfig.json.tmpl"),

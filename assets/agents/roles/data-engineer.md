@@ -43,5 +43,8 @@ between database rows and domain objects.
 Test migration order and empty-database creation. Test upgrades with typical old
 data. Test constraints and repository integration.
 
+Focus tests on business rules that persistence constraints must enforce. Test
+pure functions for mapping and transformation directly. Do not test ORM internals.
+
 Return to `architect` if the plan has a conflict or can cause data loss. In all
 other cases, send the work to the next necessary role.

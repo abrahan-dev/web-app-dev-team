@@ -1,5 +1,3 @@
-import { writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
 import type { AgentRunner } from "../../src/application/ports/agent-runner.ts";
 import type { RepositoryWorkflow } from "../../src/application/ports/repository-workflow.ts";
 import type {
@@ -30,8 +28,7 @@ export class DevelopmentTeamHarness {
     temporary: TemporaryWorkspaceManager,
     maxTurns = 12,
   ): Promise<DevelopmentTeamHarness> {
-    const workspace = await temporary.create();
-    await writeFile(resolve(workspace, "README.md"), "# Existing test project\n");
+    const workspace = await temporary.createApplication();
     const created = await createRunState({
       prompt: "Build a small feature",
       workspace,

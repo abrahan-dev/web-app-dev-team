@@ -64,8 +64,7 @@ async function sourceArchive(featureIds: string[]): Promise<string> {
 describe("specification restitution", () => {
   test("implements and checkpoints every approved specification in order", async () => {
     const source = await sourceArchive(["first-change", "second-change"]);
-    const workspace = await temporaryRoot("restitution-target-");
-    await Bun.write(resolve(workspace, "README.md"), "# Existing test project\n");
+    const workspace = await temporary.createApplication("restitution-target-");
     const created = await createRestitution({
       workspace,
       specificationsDirectory: source,
@@ -103,8 +102,7 @@ describe("specification restitution", () => {
 
   test("resumes the current agent without skipping a sequence after failure", async () => {
     const source = await sourceArchive(["resumable-change"]);
-    const workspace = await temporaryRoot("restitution-target-");
-    await Bun.write(resolve(workspace, "README.md"), "# Existing test project\n");
+    const workspace = await temporary.createApplication("restitution-target-");
     const created = await createRestitution({
       workspace,
       specificationsDirectory: source,
@@ -146,8 +144,7 @@ describe("specification restitution", () => {
 
   test("recovers a running sequence after an unclean controller stop", async () => {
     const source = await sourceArchive(["recover-change"]);
-    const workspace = await temporaryRoot("restitution-target-");
-    await Bun.write(resolve(workspace, "README.md"), "# Existing test project\n");
+    const workspace = await temporary.createApplication("restitution-target-");
     const created = await createRestitution({
       workspace,
       specificationsDirectory: source,

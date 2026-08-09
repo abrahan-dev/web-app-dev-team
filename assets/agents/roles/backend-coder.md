@@ -39,8 +39,12 @@ approval.
 First, write a failing domain or use-case test. Then add the minimum code that
 makes the test pass. Refactor the code after the test passes.
 
+Give first priority to business rules and pure functions. Test inputs, outputs,
+boundaries, and invalid states. Do not test private implementation steps.
+
 Add repository integration tests. Add tRPC contract tests for procedures,
 errors, and authorization. Put tests in `test` with the same structure as `src`.
+Keep line, function, and statement coverage at or above the configured limits.
 
 ## Handoff
 

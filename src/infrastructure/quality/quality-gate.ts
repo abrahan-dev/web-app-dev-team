@@ -129,6 +129,12 @@ export async function runQualityGate(options: QualityGateOptions): Promise<Local
     options.runScripts === false
       ? []
       : preferredScripts.filter((script) => Object.hasOwn(options.facts.scripts, script));
+  const coverageScriptExists = Object.hasOwn(options.facts.scripts, "test:coverage");
+
+  if (options.runCoverage && coverageScriptExists) {
+    selectedScripts.push("test:coverage");
+  }
+
   const commands: LocalCommandResult[] = [];
 
   for (const script of selectedScripts) {
@@ -143,6 +149,9 @@ export async function runQualityGate(options: QualityGateOptions): Promise<Local
       : await checkArchitecture(options.workspace);
   const baseline = new Set(options.facts.architectureBaseline);
   const details = [
+    ...(options.runCoverage && !coverageScriptExists
+      ? ["Coverage is required, but package.json has no test:coverage script."]
+      : []),
     ...currentArchitecture.filter((violation) => !baseline.has(violation)),
     ...(await complexityViolations(options.workspace, options.changedFiles)),
     ...commands

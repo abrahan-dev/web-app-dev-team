@@ -20,6 +20,15 @@ describe("web application template", () => {
     );
     expect(files["drizzle.config.ts"]).toContain('url: "./.data/purchase-orders.sqlite"');
     expect(files[".github/workflows/ci.yml"]).toContain("bun-version: 1.3.10");
+    expect(files[".github/workflows/ci.yml"]).toContain("actions/checkout@v6");
+    expect(files[".github/workflows/ci.yml"]).toContain("actions/cache@v5");
+    expect(files[".github/workflows/ci.yml"]).toContain("bun run test:coverage");
+    expect(files["bunfig.toml"]).toContain(
+      "coverageThreshold = { lines = 0.8, functions = 0.8, statements = 0.8 }",
+    );
+    expect(JSON.parse(files["package.json"] ?? "{}").scripts["test:coverage"]).toBe(
+      "bun test --coverage",
+    );
 
     const output = Object.values(files).join("\n");
     expect(output).not.toContain("{{applicationName}}");

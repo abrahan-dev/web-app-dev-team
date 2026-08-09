@@ -42,6 +42,10 @@ a removed package, or a new package group requires a change in `src`.
 The `workspace/templates` directory contains files for new applications.
 Change a template to adjust the initial content of its generated file.
 
+The `base/bunfig.toml.tmpl` file defines the generated coverage limits. The
+controller runs the generated `test:coverage` script after backend, frontend,
+and successful QA work.
+
 Keep the current placeholders unless you also change the template renderer.
 The application defines each output path and each template selection rule in
 `src`. A new template file has no effect until `src` selects and renders it.

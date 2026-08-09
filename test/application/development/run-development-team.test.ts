@@ -40,8 +40,7 @@ afterEach(async () => {
 });
 
 async function newRun(maxTurns = 12): Promise<string> {
-  const root = await temporary.create();
-  await writeFile(resolve(root, "README.md"), "# Existing test project\n");
+  const root = await temporary.createApplication();
   const created = await createRunState({
     prompt: "Build a small feature",
     workspace: root,

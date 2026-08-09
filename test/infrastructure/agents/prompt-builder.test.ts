@@ -45,6 +45,15 @@ describe("role instructions", () => {
     expect(instructions).toContain("Drizzle ORM");
   });
 
+  test("test-writing roles prioritize business rules and pure functions", async () => {
+    for (const role of [Role.DataEngineer, Role.BackendCoder, Role.FrontendCoder, Role.Qa]) {
+      const instructions = (await loadRoleInstructions(role)).toLowerCase();
+
+      expect(instructions).toContain("business rules");
+      expect(instructions).toContain("pure functions");
+    }
+  });
+
   test("loads the shared STE communication standard", async () => {
     const standard = await loadCommunicationStandard();
 

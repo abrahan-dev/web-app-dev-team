@@ -43,12 +43,12 @@ flowchart TD
     DC -->|Passed| BR
     BR -->|Yes| BE["Backend coder"]
     BR -->|No| FR2{"Frontend required?"}
-    BE -->|Continue| BC["Quality gate"]
+    BE -->|Continue| BC["Quality and coverage gate"]
     BC -->|Failed| BE
     BC -->|Passed| FR2
     FR2 -->|Yes| FE["Frontend coder"]
     FR2 -->|No| Q["QA"]
-    FE -->|Continue| FC["Quality gate"]
+    FE -->|Continue| FC["Quality and coverage gate"]
     FC -->|Failed| FE
     FC -->|Passed| Q
   end
@@ -58,7 +58,9 @@ flowchart TD
   BE -->|Blocker| A
   FE -->|Blocker| A
 
-  Q -->|Passed| C["Complete"]
+  Q -->|Passed| QC["Final coverage gate"]
+  QC -->|Failed| Q
+  QC -->|Passed| C["Complete"]
   Q -->|Failed| O{"Declared failure owner"}
   O -->|Architect| A
   O -->|Data engineer| D
@@ -143,6 +145,14 @@ change `.env`.
 
 Before QA, the checks examine structure and complexity. They also run the
 available format, lint, typecheck, unit, integration, and E2E scripts.
+
+The controller runs `test:coverage` after backend and frontend work. It runs
+the script again after QA requests completion. A failure returns work to the
+role that ran the check.
+
+New applications define the coverage limits in `bunfig.toml`. The default
+limits are 80 percent for lines, functions, and statements. Browser E2E tests
+do not replace unit or integration coverage.
 
 A failed check returns the work to the active role.
 

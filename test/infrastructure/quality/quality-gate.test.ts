@@ -64,6 +64,7 @@ describe("local quality gate commands", () => {
     const root = await workspace({
       build: "bun -e \"console.log('build should not run')\"",
       "test:e2e": "bun -e \"console.log('e2e ok')\"",
+      "test:coverage": "bun -e \"console.log('coverage ok')\"",
       lint: "bun -e \"console.log('lint ok')\"",
       typecheck: "bun -e \"console.log('types ok')\"",
     });
@@ -75,6 +76,7 @@ describe("local quality gate commands", () => {
       turn: 1,
       sequence: 1,
       role: Role.BackendCoder,
+      runCoverage: true,
     });
 
     expect(result.passed).toBe(true);
@@ -82,11 +84,81 @@ describe("local quality gate commands", () => {
       "bun run lint",
       "bun run typecheck",
       "bun run test:e2e",
+      "bun run test:coverage",
     ]);
-    expect(result.commands.map(({ exitCode }) => exitCode)).toEqual([0, 0, 0]);
+    expect(result.commands.map(({ exitCode }) => exitCode)).toEqual([0, 0, 0, 0]);
     expect(result.commands[0]?.output).toContain("lint ok");
     expect(result.commands[1]?.output).toContain("types ok");
     expect(result.commands[2]?.output).toContain("e2e ok");
+    expect(result.commands[3]?.output).toContain("coverage ok");
+  });
+
+  test("runs coverage alone and fails when its script is missing", async () => {
+    const coveredRoot = await workspace({
+      test: "bun -e \"console.log('test must not run')\"",
+      "test:coverage": "bun -e \"console.log('coverage only')\"",
+    });
+    const covered = await runQualityGate({
+      workspace: coveredRoot,
+      facts: await inspectWorkspace(coveredRoot),
+      changedFiles: [],
+      turn: 1,
+      sequence: 1,
+      role: Role.FrontendCoder,
+      runScripts: false,
+      runCoverage: true,
+    });
+    const missingRoot = await workspace({ test: "bun test" });
+    const missing = await runQualityGate({
+      workspace: missingRoot,
+      facts: await inspectWorkspace(missingRoot),
+      changedFiles: [],
+      turn: 1,
+      sequence: 1,
+      role: Role.Qa,
+      runScripts: false,
+      runCoverage: true,
+    });
+
+    expect(covered.commands.map(({ command }) => command)).toEqual(["bun run test:coverage"]);
+    expect(covered.passed).toBe(true);
+    expect(missing.passed).toBe(false);
+    expect(missing.details).toContain(
+      "Coverage is required, but package.json has no test:coverage script.",
+    );
+  });
+
+  test("fails when Bun reports coverage below the configured limit", async () => {
+    const root = await workspace({ "test:coverage": "bun test --coverage" });
+    await mkdir(resolve(root, "src"), { recursive: true });
+    await mkdir(resolve(root, "test"), { recursive: true });
+    await writeFile(
+      resolve(root, "bunfig.toml"),
+      "[test]\ncoverageSkipTestFiles = true\ncoverageThreshold = 1\n",
+    );
+    await writeFile(
+      resolve(root, "src", "classify.ts"),
+      'export const classify = (value: boolean): string => value ? "yes" : "no";\nexport const untested = (): string => "untested";\n',
+    );
+    await writeFile(
+      resolve(root, "test", "classify.test.ts"),
+      'import { expect, test } from "bun:test";\nimport { classify } from "../src/classify.ts";\ntest("classifies true", () => expect(classify(true)).toBe("yes"));\n',
+    );
+
+    const result = await runQualityGate({
+      workspace: root,
+      facts: await inspectWorkspace(root),
+      changedFiles: ["src/classify.ts"],
+      turn: 1,
+      sequence: 1,
+      role: Role.BackendCoder,
+      runScripts: false,
+      runCoverage: true,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(result.commands).toMatchObject([{ command: "bun run test:coverage", exitCode: 1 }]);
+    expect(result.details[0]).toContain("bun run test:coverage exited 1");
   });
 
   test("records a failing script and its diagnostic output", async () => {

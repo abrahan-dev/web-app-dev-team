@@ -19,13 +19,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: {{bunVersion}}
       - name: Restore Bun cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
@@ -41,4 +41,6 @@ jobs:
         run: bun run typecheck
       - name: Run tests
         run: bun run test
+      - name: Check coverage
+        run: bun run test:coverage
 {{frontendSteps}}
