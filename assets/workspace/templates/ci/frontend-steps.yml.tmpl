@@ -1,0 +1,4 @@
+      - name: Install Playwright browser
+        run: bunx playwright install --with-deps chromium
+      - name: Run end-to-end tests
+        run: bun run test:e2e

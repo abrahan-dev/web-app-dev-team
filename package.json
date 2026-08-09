@@ -1,0 +1,35 @@
+{
+  "name": "web-app-dev-team",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run --env-file=.env src/index.ts tmux",
+    "tmux": "bun run --env-file=.env src/index.ts tmux",
+    "restore": "bun run --env-file=.env src/index.ts restore",
+    "restore:resume": "bun run --env-file=.env src/index.ts restore:resume",
+    "restore:status": "bun run --env-file=.env src/index.ts restore-status",
+    "git:resume": "bun run --env-file=.env src/index.ts git:resume",
+    "demo": "bun run src/index.ts demo",
+    "format": "eslint . --fix && prettier --write .",
+    "format:check": "prettier --check . && eslint .",
+    "complexity": "eslint src --rule 'complexity: [\"error\", 10]'",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run format:check && bun run typecheck && bun run complexity && bun run test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "@types/bun": "latest",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.6",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.65.0"
+  }
+}

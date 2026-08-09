@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "role": { "type": "string", "enum": ["qa"] },
+    "summary": { "type": "string", "minLength": 1 },
+    "scenariosTested": { "type": "array", "items": { "type": "string" } },
+    "commands": { "type": "array", "items": { "type": "string" } },
+    "failures": { "type": "array", "items": { "type": "string" } },
+    "failureOwner": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": ["architect", "data-engineer", "backend-coder", "frontend-coder"]
+        },
+        { "type": "null" }
+      ]
+    },
+    "artifacts": { "type": "array", "items": { "type": "string" } },
+    "evidence": { "type": "array", "items": { "type": "string" } },
+    "decision": { "type": "string", "enum": ["handoff", "complete"] },
+    "nextRole": {
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": ["architect", "data-engineer", "backend-coder", "frontend-coder"]
+        },
+        { "type": "null" }
+      ]
+    },
+    "reason": { "type": "string", "minLength": 1 }
+  },
+  "required": [
+    "role",
+    "summary",
+    "scenariosTested",
+    "commands",
+    "failures",
+    "failureOwner",
+    "artifacts",
+    "evidence",
+    "decision",
+    "nextRole",
+    "reason"
+  ]
+}

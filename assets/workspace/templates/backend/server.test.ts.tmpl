@@ -1,0 +1,8 @@
+import { describe, expect, test } from "bun:test";
+import { appRouter } from "../../../../src/apps/{{applicationName}}/backend/router.ts";
+
+describe("application router", () => {
+  test("starts with an explicit empty procedure map", () => {
+    expect(Object.keys(appRouter._def.procedures)).toEqual([]);
+  });
+});

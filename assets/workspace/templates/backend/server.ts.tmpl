@@ -1,0 +1,22 @@
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
+import { appRouter } from "./router.ts";
+
+const port = Number(process.env.PORT ?? 3000);
+
+Bun.serve({
+  port,
+  fetch(request) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/health") {
+      return Response.json({ status: "ok" });
+    }
+
+    return fetchRequestHandler({
+      endpoint: "/trpc",
+      req: request,
+      router: appRouter,
+      createContext: () => ({}),
+    });
+  },
+});

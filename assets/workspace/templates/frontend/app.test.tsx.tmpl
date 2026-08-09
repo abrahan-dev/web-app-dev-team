@@ -1,0 +1,6 @@
+import { expect, test } from "bun:test";
+import { App } from "../../../../src/apps/{{applicationName}}/frontend/app.tsx";
+
+test("exports the application shell", () => {
+  expect(typeof App).toBe("function");
+});
