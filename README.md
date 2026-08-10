@@ -60,6 +60,29 @@ See the
 [official GitHub MCP Server releases](https://github.com/github/github-mcp-server/releases)
 for all supported platforms.
 
+After installation, create the user configuration directory:
+
+```bash
+mkdir -p ~/.config/web-app-dev-team
+chmod 700 ~/.config/web-app-dev-team
+```
+
+Create `~/.config/web-app-dev-team/config.env` with this value:
+
+```dotenv
+GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_...
+```
+
+Use a fine-grained personal access token. Give it access to each target
+repository. Set the `Pull requests` repository permission to `Read and write`.
+Do not put the token in shell history or commit it to Git.
+
+Protect the configuration file:
+
+```bash
+chmod 600 ~/.config/web-app-dev-team/config.env
+```
+
 ## Quick start
 
 Run one feature request against a project:
