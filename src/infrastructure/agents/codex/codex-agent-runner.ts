@@ -32,6 +32,18 @@ interface CodexProcess {
 
 export type CodexProcessSpawner = (command: string[], workspace: string) => CodexProcess;
 export type AgentPromptBuilder = (context: AgentContext) => Promise<string>;
+export const modelReasoningEfforts = ["none", "low", "medium", "high", "xhigh", "max"] as const;
+export type ModelReasoningEffort = (typeof modelReasoningEfforts)[number];
+
+export function parseModelReasoningEffort(value: string): ModelReasoningEffort {
+  if (modelReasoningEfforts.includes(value as ModelReasoningEffort)) {
+    return value as ModelReasoningEffort;
+  }
+
+  throw new Error(
+    `WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT must be one of: ${modelReasoningEfforts.join(", ")}.`,
+  );
+}
 
 const spawnCodexProcess: CodexProcessSpawner = (command, workspace) =>
   Bun.spawn(command, {
@@ -74,6 +86,9 @@ export class CodexAgentRunner implements AgentRunner {
     const outputPath = resolve(runDirectory, `${state.turns}-${role}-output.json`);
     const schemaPath = resolve(agentSchemasRoot, `${role}-output.schema.json`);
     const model = process.env.WEB_APP_DEV_TEAM_MODEL;
+    const reasoningEffort = parseModelReasoningEffort(
+      process.env.WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT ?? "high",
+    );
     const args = [
       "exec",
       "--ephemeral",
@@ -90,6 +105,8 @@ export class CodexAgentRunner implements AgentRunner {
       "--color",
       "never",
       "--json",
+      "--config",
+      `model_reasoning_effort="${reasoningEffort}"`,
     ];
 
     if (model) {

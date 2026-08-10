@@ -34,8 +34,9 @@ web-app-dev-team configure
 The command explains the required GitHub token permission. It tells you that
 the token input stays hidden. It repeats a question after invalid input. It
 creates the configuration directory with mode `700`. It creates `config.env`
-with mode `600`. It also requests the model, turn limit, complexity limit, and
-architecture guard setting. Press Enter to use each default value.
+with mode `600`. It also requests the model, reasoning effort, turn limit,
+complexity limit, and architecture guard setting. Press Enter to use each
+default value.
 
 The command also checks the GitHub MCP server. If it is missing, the command
 offers to install it. It uses Homebrew on macOS. It installs the official
@@ -243,6 +244,7 @@ Common values:
 
 ```dotenv
 WEB_APP_DEV_TEAM_MODEL=gpt-5.6-luna
+WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=high
 WEB_APP_DEV_TEAM_MAX_TURNS=12
 WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10
 WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on
@@ -254,6 +256,14 @@ WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND=github-mcp-server
 WEB_APP_DEV_TEAM_GITHUB_MCP_ARGS=["stdio","--tools=create_pull_request"]
 GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_...
 ```
+
+The default reasoning effort is `high`. GPT-5.6 supports `none`, `low`,
+`medium`, `high`, `xhigh`, and `max`. Higher values can increase quality,
+latency, and token use. See the
+[official OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model#update-api-and-model-parameters).
+
+One turn is one role execution and handoff. `WEB_APP_DEV_TEAM_MAX_TURNS` limits
+the total turns in one development run.
 
 Pull request creation is enabled by default. Set
 `WEB_APP_DEV_TEAM_CREATE_PR=off` to disable it. When it is enabled, startup

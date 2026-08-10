@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { GitHubMcpPullRequestPublisher } from "../../infrastructure/git/github-mcp-publisher.ts";
 import { parseMcpArguments } from "../../infrastructure/git/config.ts";
+import { parseModelReasoningEffort } from "../../infrastructure/agents/codex/codex-agent-runner.ts";
 import { parseEnvironmentFile } from "./configuration-loader.ts";
 import { installLinuxGithubMcp } from "./github-mcp-installer.ts";
 
@@ -67,8 +68,19 @@ const configurationSettings: ConfigurationSetting[] = [
     },
   },
   {
+    defaultValue: "high",
+    description:
+      "The reasoning effort controls model analysis. Use none, low, medium, high, xhigh, or max.",
+    label: "Model reasoning effort",
+    name: "WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT",
+    validate: (value) => {
+      parseModelReasoningEffort(value);
+    },
+  },
+  {
     defaultValue: "12",
-    description: "The turn limit stops a run after this number of agent turns.",
+    description:
+      "One turn is one role execution and handoff. The limit stops the run at this count.",
     label: "Maximum turns",
     name: "WEB_APP_DEV_TEAM_MAX_TURNS",
     validate: (value) => validatePositiveInteger("WEB_APP_DEV_TEAM_MAX_TURNS", value),

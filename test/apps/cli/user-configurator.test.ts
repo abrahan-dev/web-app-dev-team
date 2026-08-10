@@ -43,6 +43,7 @@ describe("user configurator", () => {
     expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect(await readFile(path, "utf8")).toContain("GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_test");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-5.6-luna");
+    expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=high");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=12");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on");
@@ -143,6 +144,7 @@ describe("user configurator", () => {
       "Codex model": "gpt-custom",
       "Maximum cyclomatic complexity": "8",
       "Maximum turns": "20",
+      "Model reasoning effort": "xhigh",
     };
 
     await configureUser({
@@ -161,6 +163,7 @@ describe("user configurator", () => {
 
     const content = await readFile(join(home, ".config/web-app-dev-team/config.env"), "utf8");
     expect(content).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-custom");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=xhigh");
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=20");
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=8");
     expect(content).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=off");
@@ -195,6 +198,7 @@ describe("user configurator", () => {
       "Codex model": ["invalid model", "gpt-valid"],
       "Maximum cyclomatic complexity": ["0", "8"],
       "Maximum turns": ["none", "20"],
+      "Model reasoning effort": ["extreme", "high"],
     };
 
     await configureUser({
@@ -213,9 +217,10 @@ describe("user configurator", () => {
 
     const content = await readFile(join(home, ".config/web-app-dev-team/config.env"), "utf8");
     expect(content).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-valid");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=high");
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=20");
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=8");
     expect(content).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=off");
-    expect(messages.filter((message) => message.endsWith("Try again.")).length).toBe(4);
+    expect(messages.filter((message) => message.endsWith("Try again.")).length).toBe(5);
   });
 });

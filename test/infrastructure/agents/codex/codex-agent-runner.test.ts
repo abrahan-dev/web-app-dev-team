@@ -15,6 +15,7 @@ import { TemporaryWorkspaceManager } from "../../../support/temporary-workspaces
 
 const temporary = new TemporaryWorkspaceManager();
 const originalModel = process.env.WEB_APP_DEV_TEAM_MODEL;
+const originalReasoningEffort = process.env.WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT;
 
 afterEach(async () => {
   await temporary.cleanup();
@@ -23,6 +24,12 @@ afterEach(async () => {
     delete process.env.WEB_APP_DEV_TEAM_MODEL;
   } else {
     process.env.WEB_APP_DEV_TEAM_MODEL = originalModel;
+  }
+
+  if (originalReasoningEffort === undefined) {
+    delete process.env.WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT;
+  } else {
+    process.env.WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT = originalReasoningEffort;
   }
 });
 
@@ -76,6 +83,7 @@ describe("Codex agent runner", () => {
     const commands: string[][] = [];
     const prompts: string[] = [];
     process.env.WEB_APP_DEV_TEAM_MODEL = "test-model";
+    process.env.WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT = "xhigh";
     const stdout = [
       JSON.stringify({
         type: "item.completed",
@@ -105,6 +113,8 @@ describe("Codex agent runner", () => {
     });
     expect(commands[0]).toContain("--model");
     expect(commands[0]).toContain("test-model");
+    expect(commands[0]).toContain("--config");
+    expect(commands[0]).toContain('model_reasoning_effort="xhigh"');
     expect(commands[0]).toContain("workspace-write");
     expect(prompts).toEqual(["TEST PROMPT"]);
   });
@@ -138,5 +148,14 @@ describe("Codex agent runner", () => {
     const runner = new CodexAgentRunner(processSpawner({}), async () => "TEST PROMPT");
 
     expect(runner.run(agentContext)).rejects.toThrow("invalid structured output");
+  });
+
+  test("rejects an unsupported model reasoning effort", async () => {
+    process.env.WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT = "extreme";
+    const runner = new CodexAgentRunner(processSpawner({}), async () => "TEST PROMPT");
+
+    expect(runner.run(await context())).rejects.toThrow(
+      "WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT must be one of",
+    );
   });
 });

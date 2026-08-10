@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PullRequestRequest } from "../../../src/application/ports/repository-workflow.ts";
 import {
+  githubMcpEnvironment,
   GitHubMcpPullRequestPublisher,
   type GitHubMcpConnection,
 } from "../../../src/infrastructure/git/github-mcp-publisher.ts";
@@ -47,6 +48,16 @@ function connection(options: { tools?: string[]; isError?: boolean; url?: string
 }
 
 describe("GitHub MCP pull request publisher", () => {
+  test("passes the GitHub token through the restricted MCP environment", () => {
+    const environment = githubMcpEnvironment({
+      GITHUB_PERSONAL_ACCESS_TOKEN: "github_pat_test",
+      UNRELATED_SECRET: "do-not-inherit",
+    });
+
+    expect(environment.GITHUB_PERSONAL_ACCESS_TOKEN).toBe("github_pat_test");
+    expect(environment.UNRELATED_SECRET).toBeUndefined();
+  });
+
   test("verifies the required tool and closes the connection", async () => {
     const fake = connection({});
     const publisher = new GitHubMcpPullRequestPublisher(

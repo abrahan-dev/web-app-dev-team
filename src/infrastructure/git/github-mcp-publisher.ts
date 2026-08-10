@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/client";
-import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import type {
   PullRequestPublisher,
   PullRequestRequest,
@@ -25,11 +25,21 @@ export interface GitHubMcpConnection {
 
 export type GitHubMcpConnectionFactory = (options: GitHubMcpOptions) => GitHubMcpConnection;
 
+export function githubMcpEnvironment(
+  environment: NodeJS.ProcessEnv = process.env,
+): Record<string, string> {
+  const inherited = getDefaultEnvironment();
+  const token = environment.GITHUB_PERSONAL_ACCESS_TOKEN;
+
+  return token ? { ...inherited, GITHUB_PERSONAL_ACCESS_TOKEN: token } : inherited;
+}
+
 const createGitHubMcpConnection: GitHubMcpConnectionFactory = (options) => {
   const client = new Client({ name: "web-app-dev-team", version: "0.1.0" });
   const transport = new StdioClientTransport({
     command: options.command,
     args: options.arguments_,
+    env: githubMcpEnvironment(),
   });
 
   return {
