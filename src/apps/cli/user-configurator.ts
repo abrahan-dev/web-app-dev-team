@@ -38,6 +38,61 @@ interface NormalizedDependencies {
   which: (command: string) => string | null;
 }
 
+interface ConfigurationSetting {
+  defaultValue: string;
+  description: string;
+  label: string;
+  name: string;
+  validate: (value: string) => void;
+}
+
+function validatePositiveInteger(name: string, value: string): void {
+  const number = Number(value);
+
+  if (!Number.isInteger(number) || number < 1) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+}
+
+const configurationSettings: ConfigurationSetting[] = [
+  {
+    defaultValue: "gpt-5.6-luna",
+    description: "The model runs each specialized Codex role.",
+    label: "Codex model",
+    name: "WEB_APP_DEV_TEAM_MODEL",
+    validate: (value) => {
+      if (!/^[A-Za-z0-9._-]+$/u.test(value)) {
+        throw new Error("WEB_APP_DEV_TEAM_MODEL has invalid characters.");
+      }
+    },
+  },
+  {
+    defaultValue: "12",
+    description: "The turn limit stops a run after this number of agent turns.",
+    label: "Maximum turns",
+    name: "WEB_APP_DEV_TEAM_MAX_TURNS",
+    validate: (value) => validatePositiveInteger("WEB_APP_DEV_TEAM_MAX_TURNS", value),
+  },
+  {
+    defaultValue: "10",
+    description: "The complexity limit applies to each changed function.",
+    label: "Maximum cyclomatic complexity",
+    name: "WEB_APP_DEV_TEAM_MAX_COMPLEXITY",
+    validate: (value) => validatePositiveInteger("WEB_APP_DEV_TEAM_MAX_COMPLEXITY", value),
+  },
+  {
+    defaultValue: "on",
+    description: "The architecture guard checks layer boundaries and dependency rules.",
+    label: "Architecture guard (on/off)",
+    name: "WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD",
+    validate: (value) => {
+      if (value !== "on" && value !== "off") {
+        throw new Error("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD must be on or off.");
+      }
+    },
+  },
+];
+
 async function readOptional(path: string): Promise<string> {
   try {
     return await readFile(path, "utf8");
@@ -169,6 +224,28 @@ async function configureToken(
   };
 }
 
+async function configureRuntimeSettings(
+  content: string,
+  environment: NodeJS.ProcessEnv,
+  prompt: (question: string) => Promise<string>,
+  log: (message: string) => void,
+): Promise<string> {
+  const current = parseEnvironmentFile(content);
+  let updated = content;
+
+  for (const setting of configurationSettings) {
+    const defaultValue = current[setting.name] ?? environment[setting.name] ?? setting.defaultValue;
+    log(setting.description);
+    const answer = (await prompt(`${setting.label} [${defaultValue}]: `)).trim();
+    const value = answer || defaultValue;
+    setting.validate(value);
+    updated = setEnvironmentValue(updated, setting.name, value);
+    environment[setting.name] = value;
+  }
+
+  return updated;
+}
+
 async function installMissingServer(
   dependencies: Required<
     Pick<
@@ -176,9 +253,9 @@ async function installMissingServer(
       "architecture" | "home" | "installLinux" | "platform" | "prompt" | "run" | "which"
     >
   >,
-): Promise<string> {
+): Promise<string | null> {
   if (!isYes(await dependencies.prompt("Install the GitHub MCP server now? [y/N] "))) {
-    throw new Error(`GitHub MCP server is required. Install it from ${releasesUrl}.`);
+    return null;
   }
 
   if (dependencies.platform === "darwin") {
@@ -260,12 +337,18 @@ export async function configureUser(options: ConfigureDependencies = {}): Promis
     dependencies.prompt,
     dependencies.promptSecret,
   );
+  configured.content = await configureRuntimeSettings(
+    configured.content,
+    dependencies.environment,
+    dependencies.prompt,
+    dependencies.log,
+  );
   await writeSecureConfiguration(configPath, configured.content);
   dependencies.environment.GITHUB_PERSONAL_ACCESS_TOKEN = configured.token;
   let command = dependencies.environment.WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND ?? "github-mcp-server";
 
   if (!dependencies.which(command)) {
-    command = await installMissingServer({
+    const installedCommand = await installMissingServer({
       architecture: dependencies.architecture,
       home: dependencies.home,
       installLinux: dependencies.installLinux,
@@ -274,11 +357,22 @@ export async function configureUser(options: ConfigureDependencies = {}): Promis
       run: dependencies.run,
       which: dependencies.which,
     });
-    dependencies.environment.WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND = command;
+
+    if (!installedCommand) {
+      dependencies.log(
+        `GitHub MCP server was not installed. Install it before you use the app: ${releasesUrl}.`,
+      );
+      dependencies.log(`Configuration saved in ${configPath}.`);
+
+      return;
+    }
+
+    command = installedCommand;
+    dependencies.environment.WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND = installedCommand;
     configured.content = setEnvironmentValue(
       configured.content,
       "WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND",
-      command,
+      installedCommand,
     );
     await writeSecureConfiguration(configPath, configured.content);
   }

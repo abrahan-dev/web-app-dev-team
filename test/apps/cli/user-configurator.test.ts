@@ -24,7 +24,7 @@ describe("user configurator", () => {
       installLinux: async () => join(home, ".local/bin/github-mcp-server"),
       log: (message) => messages.push(message),
       platform: "linux",
-      prompt: async () => "yes",
+      prompt: async (question) => (question.startsWith("Install") ? "yes" : ""),
       promptSecret: async () => "github_pat_test",
       verify: async (command) => {
         verifiedCommand = command;
@@ -37,6 +37,10 @@ describe("user configurator", () => {
     expect((await stat(directory)).mode & 0o777).toBe(0o700);
     expect((await stat(path)).mode & 0o777).toBe(0o600);
     expect(await readFile(path, "utf8")).toContain("GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_test");
+    expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-5.6-luna");
+    expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=12");
+    expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10");
+    expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on");
     expect(await readFile(path, "utf8")).toContain(
       `WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND=${verifiedCommand}`,
     );
@@ -55,7 +59,7 @@ describe("user configurator", () => {
     await configureUser({
       environment: {},
       home,
-      prompt: async () => "no",
+      prompt: async (question) => (question.startsWith("A GitHub token") ? "no" : ""),
       promptSecret: async () => {
         throw new Error("The secret prompt must not run.");
       },
@@ -77,7 +81,7 @@ describe("user configurator", () => {
       environment: {},
       home,
       platform: "darwin",
-      prompt: async () => "yes",
+      prompt: async (question) => (question.startsWith("Install") ? "yes" : ""),
       promptSecret: async () => "github_pat_test",
       run: (command) => {
         commands.push(command);
@@ -100,17 +104,53 @@ describe("user configurator", () => {
 
   test("does not install the server without confirmation", async () => {
     const home = await temporary.create("configure-decline-");
+    const messages: string[] = [];
+    let verified = false;
 
-    expect(
-      configureUser({
-        environment: {},
-        home,
-        platform: "linux",
-        prompt: async () => "no",
-        promptSecret: async () => "github_pat_test",
-        verify: async () => {},
-        which: () => null,
-      }),
-    ).rejects.toThrow("GitHub MCP server is required");
+    await configureUser({
+      environment: {},
+      home,
+      log: (message) => messages.push(message),
+      platform: "linux",
+      prompt: async () => "",
+      promptSecret: async () => "github_pat_test",
+      verify: async () => {
+        verified = true;
+      },
+      which: () => null,
+    });
+
+    expect(verified).toBe(false);
+    expect(messages.join("\n")).toContain("Install it before you use the app");
+  });
+
+  test("saves custom runtime settings", async () => {
+    const home = await temporary.create("configure-settings-");
+    const answers: Record<string, string> = {
+      "Architecture guard": "off",
+      "Codex model": "gpt-custom",
+      "Maximum cyclomatic complexity": "8",
+      "Maximum turns": "20",
+    };
+
+    await configureUser({
+      environment: {},
+      home,
+      log: () => {},
+      prompt: async (question) => {
+        const entry = Object.entries(answers).find(([label]) => question.startsWith(label));
+
+        return entry?.[1] ?? "";
+      },
+      promptSecret: async () => "github_pat_test",
+      verify: async () => {},
+      which: () => "/usr/local/bin/github-mcp-server",
+    });
+
+    const content = await readFile(join(home, ".config/web-app-dev-team/config.env"), "utf8");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-custom");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=20");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=8");
+    expect(content).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=off");
   });
 });

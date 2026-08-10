@@ -39,11 +39,14 @@ web-app-dev-team configure
 
 The command requests the GitHub token without showing it. It creates the
 configuration directory with mode `700`. It creates `config.env` with mode
-`600`.
+`600`. It also requests the model, turn limit, complexity limit, and
+architecture guard setting. Press Enter to use each default value.
 
 The command also checks the GitHub MCP server. If it is missing, the command
 offers to install it. It uses Homebrew on macOS. It installs the official
 binary in `~/.local/bin` on Linux. The Linux installation does not use `sudo`.
+You can decline the installation. The command then shows the manual
+installation link.
 
 The GitHub MCP server is required on macOS and Linux. You can also install it
 manually.
@@ -99,7 +102,8 @@ web-app-dev-team configure
 ```
 
 The command keeps an existing token unless you approve its replacement. It
-asks before it installs the GitHub MCP server.
+explains each runtime setting and offers its current or default value. It asks
+before it installs the GitHub MCP server. You can install the server later.
 
 ### `run`
 
@@ -237,7 +241,7 @@ The command uses this configuration order:
 Common values:
 
 ```dotenv
-WEB_APP_DEV_TEAM_MODEL=gpt-5.6-sol
+WEB_APP_DEV_TEAM_MODEL=gpt-5.6-luna
 WEB_APP_DEV_TEAM_MAX_TURNS=12
 WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10
 WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on
