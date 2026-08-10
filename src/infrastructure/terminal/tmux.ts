@@ -13,9 +13,33 @@ export interface CommandRunner {
   run(command: string[]): Promise<void>;
 }
 
+export interface TerminalProcess {
+  exited: Promise<number>;
+}
+
+export interface TerminalSpawnOptions {
+  stdin: "inherit";
+  stdout: "inherit";
+  stderr: "inherit";
+}
+
+export type TerminalProcessSpawner = (
+  command: string[],
+  options: TerminalSpawnOptions,
+) => TerminalProcess;
+
+const spawnTerminalProcess: TerminalProcessSpawner = (command, options) =>
+  Bun.spawn(command, options);
+
 export class BunCommandRunner implements CommandRunner {
+  constructor(private readonly spawn: TerminalProcessSpawner = spawnTerminalProcess) {}
+
   async run(command: string[]): Promise<void> {
-    const process = Bun.spawn(command, { stdout: "inherit", stderr: "inherit" });
+    const process = this.spawn(command, {
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+    });
     const exitCode = await process.exited;
 
     if (exitCode !== 0) {

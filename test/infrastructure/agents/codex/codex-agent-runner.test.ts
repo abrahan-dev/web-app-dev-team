@@ -115,6 +115,7 @@ describe("Codex agent runner", () => {
     expect(commands[0]).toContain("test-model");
     expect(commands[0]).toContain("--config");
     expect(commands[0]).toContain('model_reasoning_effort="xhigh"');
+    expect(commands[0]).toContain("--skip-git-repo-check");
     expect(commands[0]).toContain("workspace-write");
     expect(prompts).toEqual(["TEST PROMPT"]);
   });

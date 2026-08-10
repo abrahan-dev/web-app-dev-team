@@ -92,6 +92,7 @@ export class CodexAgentRunner implements AgentRunner {
     const args = [
       "exec",
       "--ephemeral",
+      "--skip-git-repo-check",
       "--sandbox",
       role === Role.Specifier || role === Role.Architect || role === Role.UiDesigner
         ? "read-only"

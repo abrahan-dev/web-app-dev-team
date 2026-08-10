@@ -1,13 +1,35 @@
 import { expect, test } from "bun:test";
 import { Role } from "../../../src/domain/roles.ts";
 import type { CommandRunner } from "../../../src/infrastructure/terminal/tmux.ts";
-import { assertTmuxInstalled, launchTmux } from "../../../src/infrastructure/terminal/tmux.ts";
+import {
+  assertTmuxInstalled,
+  BunCommandRunner,
+  launchTmux,
+  type TerminalSpawnOptions,
+} from "../../../src/infrastructure/terminal/tmux.ts";
 
 test("requires tmux before creating a dashboard run", () => {
   expect(() => assertTmuxInstalled(null)).toThrow(
     "tmux is required for the dashboard but is not installed",
   );
   expect(() => assertTmuxInstalled("/usr/local/bin/tmux")).not.toThrow();
+});
+
+test("gives tmux access to the current terminal", async () => {
+  let receivedOptions: TerminalSpawnOptions | undefined;
+  const runner = new BunCommandRunner((_command, options) => {
+    receivedOptions = options;
+
+    return { exited: Promise.resolve(0) };
+  });
+
+  await runner.run(["tmux", "attach-session", "-t", "test"]);
+
+  expect(receivedOptions).toEqual({
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+  });
 });
 
 test("builds one tiled seven-pane agents window and a hidden orchestrator", async () => {
