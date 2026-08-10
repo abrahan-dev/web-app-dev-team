@@ -23,15 +23,23 @@ function duration(start: string | null | undefined, end: string | Date): number 
   return Math.max(0, endTime - startTime);
 }
 
+function runEnd(state: RunState, now: Date): string | Date {
+  if (state.status === RunStatus.Running) {
+    return now;
+  }
+
+  return (
+    state.interruptions.at(-1)?.createdAt ??
+    state.messages.at(-1)?.createdAt ??
+    state.executions.at(-1)?.completedAt ??
+    now
+  );
+}
+
 export function runElapsedMilliseconds(state: RunState, now = new Date()): number {
   const startedAt = state.startedAt ?? state.messages[0]?.createdAt;
-  const lastMessage = state.messages.at(-1)?.createdAt;
-  const lastInterruption = state.interruptions.at(-1)?.createdAt;
-  const lastExecution = state.executions.at(-1)?.completedAt;
-  const stoppedAt = lastInterruption ?? lastMessage ?? lastExecution;
-  const end = state.status === RunStatus.Running || !stoppedAt ? now : stoppedAt;
 
-  return duration(startedAt, end);
+  return duration(startedAt, runEnd(state, now));
 }
 
 export function roleElapsedMilliseconds(state: RunState, role: Role, now = new Date()): number {
