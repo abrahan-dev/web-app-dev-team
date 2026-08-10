@@ -11,7 +11,8 @@ implementation, tests, and an optional pull request.
 The package supports macOS and Linux.
 
 It requires Bun, tmux, Git, an authenticated Codex CLI, and
-`github-mcp-server`.
+`github-mcp-server`. Use recent stable versions of these tools. An old Codex
+CLI might not support the configured model.
 
 Install the current stable version:
 

@@ -29,6 +29,7 @@ import { cliEntryPath, packageJsonPath } from "../../package-paths.ts";
 import { inspectSystem, renderDoctorChecks } from "./system-doctor.ts";
 import { loadConfiguration } from "./configuration-loader.ts";
 import { configureUser } from "./user-configurator.ts";
+import { assertCodexModelSupported } from "./codex-model-check.ts";
 
 export type CommandHandler = (arguments_: CliArguments) => Promise<void>;
 export type CommandHandlers = Record<string, CommandHandler>;
@@ -360,6 +361,7 @@ async function startDevelopment(arguments_: CliArguments, demo: boolean): Promis
 
   if (!demo) {
     assertTmuxInstalled();
+    assertCodexModelSupported();
   }
 
   const repositoryWorkflow = createRepositoryWorkflow();

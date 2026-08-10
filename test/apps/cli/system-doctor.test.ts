@@ -15,6 +15,7 @@ describe("system doctor", () => {
     expect(checks.find(({ name }) => name === "platform")?.status).toBe("PASS");
     expect(checks.find(({ name }) => name === "Bun")?.detail).toBe(Bun.version);
     expect(checks.find(({ name }) => name === "workspace")?.status).toBe("PASS");
+    expect(checks.some(({ name }) => name === "Codex model")).toBe(Bun.which("codex") !== null);
   });
 
   test("renders stable status columns", () => {
