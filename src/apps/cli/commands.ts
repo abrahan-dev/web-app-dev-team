@@ -293,7 +293,7 @@ async function resume(arguments_: CliArguments): Promise<void> {
 }
 
 async function doctor(arguments_: CliArguments): Promise<void> {
-  const checks = await inspectSystem(arguments_.optional("--workspace") ?? process.cwd());
+  const checks = await inspectSystem(arguments_.optional("--workspace"));
 
   console.log(renderDoctorChecks(checks));
 
@@ -321,14 +321,17 @@ async function printHelp(): Promise<void> {
 }
 
 async function startDevelopment(arguments_: CliArguments, demo: boolean): Promise<void> {
+  const workspace = resolve(
+    demo
+      ? (arguments_.optional("--workspace") ?? process.cwd())
+      : arguments_.required("--workspace"),
+  );
   const prompt =
     arguments_.optional("--prompt") ?? (demo ? "Add a generic feature using TDD." : undefined);
 
   if (!prompt) {
     throw new Error('Provide the task with --prompt "...". It may describe any software feature.');
   }
-
-  const workspace = resolve(arguments_.optional("--workspace") ?? process.cwd());
 
   if (!demo) {
     assertTmuxInstalled();

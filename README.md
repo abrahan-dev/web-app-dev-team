@@ -31,6 +31,12 @@ Check the local system:
 web-app-dev-team doctor
 ```
 
+On macOS, install the GitHub MCP server with Homebrew:
+
+```bash
+brew install github-mcp-server
+```
+
 ## Quick start
 
 Run one feature request against a project:
@@ -40,6 +46,9 @@ web-app-dev-team run \
   --workspace /absolute/path/to/project \
   --prompt "Add approval rules to purchase orders"
 ```
+
+The `--workspace` option is required. The command never uses the current
+directory as an implicit workspace.
 
 The specifier shows a Gherkin specification before implementation starts.
 Enter `a` to approve it. Enter `c` to request changes.
@@ -67,6 +76,9 @@ web-app-dev-team run \
   --prompt "Add approval rules to purchase orders"
 ```
 
+The workspace can be an empty directory for a new application. It can also be
+an existing project directory.
+
 The command prepares Git, creates the specification, requests human approval,
 and routes the approved work through the required roles. QA is the only role
 that can complete the run.
@@ -79,7 +91,13 @@ Run data is stored in:
 
 ### `doctor`
 
-Check the platform, workspace, and required commands:
+Check the platform and required commands:
+
+```bash
+web-app-dev-team doctor
+```
+
+Add a workspace to check its access and Git repository:
 
 ```bash
 web-app-dev-team doctor --workspace /absolute/path/to/project

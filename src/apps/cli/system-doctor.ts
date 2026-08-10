@@ -91,8 +91,7 @@ async function githubMcpCheck(): Promise<DoctorCheck> {
   }
 }
 
-export async function inspectSystem(workspaceValue: string): Promise<DoctorCheck[]> {
-  const workspace = resolve(workspaceValue);
+export async function inspectSystem(workspaceValue?: string): Promise<DoctorCheck[]> {
   const platformSupported = process.platform === "darwin" || process.platform === "linux";
   const checks: DoctorCheck[] = [
     {
@@ -104,11 +103,15 @@ export async function inspectSystem(workspaceValue: string): Promise<DoctorCheck
     commandCheck("tmux"),
     commandCheck("git"),
     commandCheck("codex"),
-    await workspaceCheck(workspace),
   ];
 
-  if (Bun.which("git")) {
-    checks.push(repositoryCheck(workspace));
+  if (workspaceValue) {
+    const workspace = resolve(workspaceValue);
+    checks.push(await workspaceCheck(workspace));
+
+    if (Bun.which("git")) {
+      checks.push(repositoryCheck(workspace));
+    }
   }
 
   if (Bun.which("codex")) {

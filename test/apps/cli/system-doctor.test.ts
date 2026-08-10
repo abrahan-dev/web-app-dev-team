@@ -2,6 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { inspectSystem, renderDoctorChecks } from "../../../src/apps/cli/system-doctor.ts";
 
 describe("system doctor", () => {
+  test("does not inspect an implicit workspace", async () => {
+    const checks = await inspectSystem();
+
+    expect(checks.some(({ name }) => name === "workspace")).toBeFalse();
+    expect(checks.some(({ name }) => name === "Git repository")).toBeFalse();
+  });
+
   test("reports the platform, Bun, and workspace", async () => {
     const checks = await inspectSystem(process.cwd());
 
