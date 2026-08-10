@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { check, getFileInfo } from "prettier";
 import type { ChangePlan } from "../../../../src/domain/schemas.ts";
 import { webAppTemplate } from "../../../../src/infrastructure/workspace/templates/web-app.ts";
 
@@ -49,5 +50,20 @@ describe("web application template", () => {
     expect(files["src/apps/purchase-orders/frontend/main.tsx"]).toBeUndefined();
     expect(files["drizzle.config.ts"]).toBeUndefined();
     expect(files[".github/workflows/ci.yml"]).not.toContain("Playwright");
+  });
+
+  test("renders files that pass Prettier", async () => {
+    const files = webAppTemplate({
+      ...fullStackPlan,
+      applicationName: "hello-world-login",
+    });
+
+    for (const [path, content] of Object.entries(files)) {
+      const fileInfo = await getFileInfo(path);
+
+      if (fileInfo.inferredParser) {
+        expect(await check(content, { filepath: path })).toBeTrue();
+      }
+    }
   });
 });

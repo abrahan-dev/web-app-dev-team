@@ -158,6 +158,9 @@ The command prepares Git, creates the specification, requests human approval,
 and routes the approved work through the required roles. QA is the only role
 that can complete the run.
 
+For a new application, bootstrap formats generated template files before it
+runs the formatter check.
+
 Runs have no turn limit by default. Stop the tmux session to stop a run. Use
 `--max-turns <count>` when you need a fixed safety limit.
 

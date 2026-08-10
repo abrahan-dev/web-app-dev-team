@@ -17,6 +17,7 @@ function validationCommands(plan: ChangePlan): string[][] {
   return [
     ["bun", "install"],
     ...(plan.frontendRequired ? [["bunx", "playwright", "install", "chromium"]] : []),
+    ["bun", "run", "format"],
     ["bun", "run", "format:check"],
     ["bun", "run", "lint"],
     ["bun", "run", "typecheck"],

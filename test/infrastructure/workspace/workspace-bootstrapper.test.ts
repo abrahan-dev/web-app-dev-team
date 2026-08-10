@@ -59,6 +59,7 @@ describe("deterministic workspace bootstrapper", () => {
     expect(result.commands.map(({ command }) => command)).toEqual([
       "bun install",
       "bunx playwright install chromium",
+      "bun run format",
       "bun run format:check",
       "bun run lint",
       "bun run typecheck",
@@ -141,7 +142,7 @@ describe("deterministic workspace bootstrapper", () => {
 
     expect(resumed.status).toBe("created");
     expect(resumed.createdFiles).toEqual([]);
-    expect(resumed.commands).toHaveLength(6);
+    expect(resumed.commands).toHaveLength(7);
   });
 
   test("omits frontend and persistence scaffolding for a backend-only plan", async () => {

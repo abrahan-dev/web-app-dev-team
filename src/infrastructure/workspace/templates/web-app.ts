@@ -32,6 +32,7 @@ function packageJson(plan: ChangePlan): string {
     typescript: catalogDevelopmentDependencies.typescript,
   };
   const scripts: Record<string, string> = {
+    format: "prettier --write .",
     "format:check": "prettier --check .",
     lint: "oxlint src test",
     typecheck: "tsc --noEmit",

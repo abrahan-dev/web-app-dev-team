@@ -53,6 +53,9 @@ The application defines each output path and each template selection rule in
 Template changes affect only future application bootstraps. They do not update
 an existing application.
 
+The bootstrap runs the generated `format` script before its formatter check.
+Keep generated files valid so the formatter can update them automatically.
+
 ## Pull request template
 
 The `git/pull-request.md` file contains the pull request body template. You can
