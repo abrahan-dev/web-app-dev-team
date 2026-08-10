@@ -1,5 +1,5 @@
 import { roles } from "../../domain/schemas.ts";
-import { cliEntryPath, roleWatcherPath } from "../../package-paths.ts";
+import { cliEntryPath, roleWatcherPath, summaryWatcherPath } from "../../package-paths.ts";
 import { paneBorderFormat } from "./active-role-accent.ts";
 
 export function assertTmuxInstalled(tmuxPath: string | null = Bun.which("tmux")): void {
@@ -57,6 +57,10 @@ function watcherCommand(runDirectory: string, role: string): string {
   return ["bun", "run", roleWatcherPath, runDirectory, role].map(shellQuote).join(" ");
 }
 
+function summaryCommand(runDirectory: string): string {
+  return ["bun", "run", summaryWatcherPath, runDirectory].map(shellQuote).join(" ");
+}
+
 export async function launchTmux(options: {
   runner: CommandRunner;
   runDirectory: string;
@@ -92,6 +96,36 @@ export async function launchTmux(options: {
     ]);
     await options.runner.run(["tmux", "select-layout", "-t", `${session}:agents`, "tiled"]);
   }
+
+  await options.runner.run([
+    "tmux",
+    "split-window",
+    "-t",
+    `${session}:agents`,
+    "-c",
+    options.workspace,
+    summaryCommand(options.runDirectory),
+  ]);
+  await options.runner.run(["tmux", "select-layout", "-t", `${session}:agents`, "tiled"]);
+  await options.runner.run([
+    "tmux",
+    "resize-pane",
+    "-t",
+    `${session}:agents.{bottom-left}`,
+    "-x",
+    "33%",
+  ]);
+
+  await options.runner.run(["tmux", "set-option", "-t", session, "mouse", "on"]);
+  await options.runner.run([
+    "tmux",
+    "set-option",
+    "-w",
+    "-t",
+    `${session}:agents`,
+    "history-limit",
+    "5000",
+  ]);
 
   await options.runner.run([
     "tmux",

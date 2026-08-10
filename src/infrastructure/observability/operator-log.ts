@@ -1,7 +1,6 @@
 import { appendFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
-  roles,
   type AgentTurn,
   type Handoff,
   type LocalCheck,
@@ -104,21 +103,26 @@ async function appendRole(runDirectory: string, role: Role, message: string): Pr
   await appendFile(resolve(runDirectory, "logs", `${role}.log`), `${message}\n`);
 }
 
-async function appendEveryRole(
-  runDirectory: string,
-  messageFor: (role: Role) => string,
-): Promise<void> {
-  await Promise.all(roles.map((role) => appendRole(runDirectory, role, messageFor(role))));
+async function appendSummary(runDirectory: string, message: string): Promise<void> {
+  await appendFile(resolve(runDirectory, "logs", "summary.log"), `${message}\n`);
 }
 
-function tokenStatus(state: RunState, paneRole: Role): string {
-  const roleUsage = state.tokenTotals.byRole[paneRole];
-  const teamUsage = state.tokenTotals.team;
+function summaryTable(state: RunState, activeRole: Role | null, turn = state.turns): string {
+  const usage = activeRole ? state.tokenTotals.byRole[activeRole] : null;
+  const roleName = label(activeRole);
+  const roleTime = activeRole
+    ? formatElapsed(roleElapsedMilliseconds(state, activeRole))
+    : "0m 00s";
 
   return [
-    `TOKENS  THIS AGENT ${count(roleUsage.totalTokens)}  ·  TEAM ${count(teamUsage.totalTokens)}`,
-    `CACHED INPUT  THIS AGENT ${count(roleUsage.cachedInputTokens)}  ·  TEAM ${count(teamUsage.cachedInputTokens)}`,
-    `TIME  THIS AGENT ${formatElapsed(roleElapsedMilliseconds(state, paneRole))}  ·  RUN ${formatElapsed(runElapsedMilliseconds(state))}`,
+    "┌──────────────┬──────────────────────┬──────────────────────┐",
+    `│ TURN         │ ${(turn + "/" + turnLimitLabel(state.maxTurns)).padEnd(20)} │ ${state.status.toUpperCase().padEnd(20)} │`,
+    "├──────────────┼──────────────────────┼──────────────────────┤",
+    `│ ROLE         │ ${roleName.padEnd(20)} │ TEAM                 │`,
+    `│ TOKENS       │ ${count(usage?.totalTokens ?? 0).padEnd(20)} │ ${count(state.tokenTotals.team.totalTokens).padEnd(20)} │`,
+    `│ CACHED INPUT │ ${count(usage?.cachedInputTokens ?? 0).padEnd(20)} │ ${count(state.tokenTotals.team.cachedInputTokens).padEnd(20)} │`,
+    `│ ACTIVE TIME  │ ${roleTime.padEnd(20)} │ ${formatElapsed(runElapsedMilliseconds(state)).padEnd(20)} │`,
+    "└──────────────┴──────────────────────┴──────────────────────┘",
   ].join("\n");
 }
 
@@ -127,11 +131,14 @@ export async function recordTurnStarted(
   state: RunState,
   activeRole: Role,
 ): Promise<void> {
-  await appendEveryRole(
-    runDirectory,
-    (paneRole) =>
-      `\n${rule}\n▶ TURN ${state.turns + 1}/${turnLimitLabel(state.maxTurns)}  ·  ${label(activeRole)} WORKING\n${tokenStatus(state, paneRole)}\n${rule}`,
-  );
+  const message = `\n${rule}\n▶ TURN ${state.turns + 1}/${turnLimitLabel(state.maxTurns)}  ·  ${label(activeRole)} WORKING\n${rule}`;
+  await Promise.all([
+    appendRole(runDirectory, activeRole, message),
+    appendSummary(
+      runDirectory,
+      `\n${summaryTable(state, activeRole, state.turns + 1)}\n▶ ${label(activeRole)} WORKING`,
+    ),
+  ]);
 }
 
 export async function recordTurnCompleted(
@@ -142,22 +149,25 @@ export async function recordTurnCompleted(
 ): Promise<void> {
   const turnTokens = usage ? `${count(usage.totalTokens)} tokens` : "tokens unavailable";
 
-  await appendEveryRole(
-    runDirectory,
-    (paneRole) =>
-      `\n✓ TURN ${state.turns}/${turnLimitLabel(state.maxTurns)}  ·  ${label(activeRole)} FINISHED  ·  ${turnTokens}\n${tokenStatus(state, paneRole)}`,
-  );
+  const message = `\n✓ TURN ${state.turns}/${turnLimitLabel(state.maxTurns)}  ·  ${label(activeRole)} FINISHED  ·  ${turnTokens}`;
+  await Promise.all([
+    appendRole(runDirectory, activeRole, message),
+    appendSummary(
+      runDirectory,
+      `\n${summaryTable(state, activeRole)}\n✓ ${label(activeRole)} FINISHED  ·  ${turnTokens}`,
+    ),
+  ]);
 }
 
 export async function recordHumanReviewRequested(
   runDirectory: string,
   specification: SpecifierTurn,
 ): Promise<void> {
-  await appendEveryRole(
-    runDirectory,
-    () =>
-      `\n⏸ HUMAN REVIEW  ·  ${specification.featureId}\n  The specification is waiting for approval or change feedback.`,
-  );
+  const message = `\n⏸ HUMAN REVIEW  ·  ${specification.featureId}\n  The specification is waiting for approval or change feedback.`;
+  await Promise.all([
+    appendRole(runDirectory, Role.Specifier, message),
+    appendSummary(runDirectory, message),
+  ]);
 }
 
 export async function recordSpecificationReview(
@@ -169,10 +179,11 @@ export async function recordSpecificationReview(
       ? `APPROVED  ·  ${review.publishedSpecification.path}`
       : `CHANGES REQUESTED  ·  ${review.feedback}`;
 
-  await appendEveryRole(
-    runDirectory,
-    () => `\n◆ HUMAN REVIEW  ·  ${review.specification.featureId}  ·  ${outcome}`,
-  );
+  const message = `\n◆ HUMAN REVIEW  ·  ${review.specification.featureId}  ·  ${outcome}`;
+  await Promise.all([
+    appendRole(runDirectory, Role.Specifier, message),
+    appendSummary(runDirectory, message),
+  ]);
 }
 
 export async function recordHandoff(runDirectory: string, handoff: Handoff): Promise<void> {
@@ -194,9 +205,11 @@ export async function recordHandoff(runDirectory: string, handoff: Handoff): Pro
   ].join("\n");
   const compact = `\n↪ HANDOFF #${handoff.sequence}  ·  ${heading}\n  ${handoff.turn.summary}`;
 
-  await appendEveryRole(runDirectory, (paneRole) =>
-    paneRole === from || paneRole === to ? full : compact,
-  );
+  await Promise.all([
+    appendRole(runDirectory, from, full),
+    ...(to ? [appendRole(runDirectory, to, full)] : []),
+    appendSummary(runDirectory, compact),
+  ]);
 }
 
 export async function recordRunFailure(
@@ -205,11 +218,11 @@ export async function recordRunFailure(
   role: Role | null,
   failure: string,
 ): Promise<void> {
-  await appendEveryRole(
-    runDirectory,
-    (paneRole) =>
-      `\n✗ RUN STOPPED  ·  ${label(role)}\n  ${failure}\n${tokenStatus(state, paneRole)}`,
-  );
+  const message = `\n✗ RUN STOPPED  ·  ${label(role)}\n  ${failure}`;
+  await Promise.all([
+    ...(role ? [appendRole(runDirectory, role, message)] : []),
+    appendSummary(runDirectory, `${message}\n${summaryTable(state, role)}`),
+  ]);
 }
 
 export async function recordLocalCheck(
@@ -222,11 +235,14 @@ export async function recordLocalCheck(
     ? `\n${check.details.map((value) => `  • ${value}`).join("\n")}`
     : "";
 
-  await appendEveryRole(
-    runDirectory,
-    (paneRole) =>
-      `\n${mark} LOCAL ${check.kind.toUpperCase()}  ·  ${check.summary}${detail}\n${tokenStatus(state, paneRole)}`,
-  );
+  const message = `\n${mark} LOCAL ${check.kind.toUpperCase()}  ·  ${check.summary}${detail}`;
+  await Promise.all([
+    appendRole(runDirectory, check.role, message),
+    appendSummary(
+      runDirectory,
+      `\n${mark} LOCAL ${check.kind.toUpperCase()}  ·  ${label(check.role)}  ·  ${check.summary}${detail}\n${summaryTable(state, check.role)}`,
+    ),
+  ]);
 }
 
 export async function recordWorkspaceBootstrap(
@@ -244,9 +260,9 @@ export async function recordWorkspaceBootstrap(
       ? `  ${bootstrap.commands.length} install/validation commands passed.\n`
       : "";
 
-  await appendEveryRole(
-    runDirectory,
-    (paneRole) =>
-      `\n${mark} WORKSPACE BOOTSTRAP  ·  ${bootstrap.status.toUpperCase()}  ·  TEMPLATE v${bootstrap.templateVersion}\n${files}${commands}  ${bootstrap.reason}\n${tokenStatus(state, paneRole)}`,
-  );
+  const message = `\n${mark} WORKSPACE BOOTSTRAP  ·  ${bootstrap.status.toUpperCase()}  ·  TEMPLATE v${bootstrap.templateVersion}\n${files}${commands}  ${bootstrap.reason}`;
+  await Promise.all([
+    appendRole(runDirectory, Role.Architect, message),
+    appendSummary(runDirectory, `${message}\n${summaryTable(state, state.currentRole)}`),
+  ]);
 }

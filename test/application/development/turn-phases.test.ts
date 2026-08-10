@@ -71,7 +71,7 @@ function services(passed: boolean, requests: QualityGateOptions[]): DevelopmentS
 }
 
 describe("development quality phase", () => {
-  test("runs structural checks without coverage after a backend turn", async () => {
+  test("runs core scripts without browser tests after a backend turn", async () => {
     const run = DevelopmentRun.restore(runStateFactory());
     const backend = backendHandoffFactory();
 
@@ -95,7 +95,12 @@ describe("development quality phase", () => {
 
     expect(result.repeatRole).toBe(false);
     expect(requests).toMatchObject([
-      { role: Role.BackendCoder, runScripts: false, runCoverage: false },
+      {
+        role: Role.BackendCoder,
+        runScripts: true,
+        runBrowserTests: false,
+        runCoverage: false,
+      },
     ]);
   });
 
@@ -114,7 +119,9 @@ describe("development quality phase", () => {
 
     expect(result.repeatRole).toBe(true);
     expect(run.state.currentRole).toBe(Role.Qa);
-    expect(requests).toMatchObject([{ role: Role.Qa, runScripts: false, runCoverage: true }]);
+    expect(requests).toMatchObject([
+      { role: Role.Qa, runScripts: true, runBrowserTests: true, runCoverage: true },
+    ]);
   });
 
   test("does not run coverage when QA reports an implementation failure", async () => {

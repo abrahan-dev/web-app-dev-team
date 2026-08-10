@@ -6,6 +6,7 @@ import {
   paneBorderFormat,
   paneIdentityCommands,
   paneStatus,
+  paneSpinnerCommand,
   paneTimingCommands,
   roleColors,
   roleIsActive,
@@ -27,6 +28,7 @@ describe("active role pane accent", () => {
       ["tmux", "set-option", "-p", "-t", "%7", "@web_app_role_active", "0"],
       ["tmux", "set-option", "-p", "-t", "%7", "@web_app_role_elapsed", "0m00s"],
       ["tmux", "set-option", "-p", "-t", "%7", "@web_app_run_elapsed", "0m00s"],
+      ["tmux", "set-option", "-p", "-t", "%7", "@web_app_spinner", "·"],
     ]);
     expect(paneActivityCommand("%7", true)).toEqual([
       "tmux",
@@ -37,11 +39,20 @@ describe("active role pane accent", () => {
       "@web_app_role_active",
       "1",
     ]);
-    expect(paneBorderFormat).toContain("● WORKING · #{pane_title}");
+    expect(paneBorderFormat).toContain("● WORKING #{@web_app_spinner} · #{pane_title}");
     expect(paneBorderFormat).toContain("ACTIVE #{@web_app_role_elapsed}");
     expect(paneBorderFormat).toContain("RUN #{@web_app_run_elapsed}");
     expect(paneBorderFormat).toContain(roleColors[Role.BackendCoder].tmux);
     expect(paneBorderFormat).toContain("BACKEND-CODER");
+    expect(paneSpinnerCommand("%7", "··")).toEqual([
+      "tmux",
+      "set-option",
+      "-p",
+      "-t",
+      "%7",
+      "@web_app_spinner",
+      "··",
+    ]);
   });
 
   test("builds live timing values and commands", () => {

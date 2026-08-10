@@ -1,8 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import { appRouter } from "../../../../src/apps/{{applicationName}}/backend/router.ts";
+import { handleRequest } from "../../../../src/apps/{{applicationName}}/backend/server.ts";
 
 describe("application router", () => {
   test("starts with an explicit empty procedure map", () => {
     expect(Object.keys(appRouter._def.procedures)).toEqual([]);
+  });
+
+  test("reports that the application is healthy", async () => {
+    const response = await handleRequest(
+      new Request("http://localhost/health"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "ok" });
   });
 });

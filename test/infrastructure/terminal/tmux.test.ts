@@ -32,7 +32,7 @@ test("gives tmux access to the current terminal", async () => {
   });
 });
 
-test("builds one tiled seven-pane agents window and a hidden orchestrator", async () => {
+test("builds seven role panes, a wide summary pane, and a hidden orchestrator", async () => {
   const commands: string[][] = [];
   const runner: CommandRunner = {
     run(command: string[]): Promise<void> {
@@ -49,13 +49,25 @@ test("builds one tiled seven-pane agents window and a hidden orchestrator", asyn
     detach: true,
   });
 
-  expect(commands.filter((command) => command[1] === "split-window")).toHaveLength(6);
+  expect(commands.filter((command) => command[1] === "split-window")).toHaveLength(7);
   expect(commands.some((command) => command.includes("orchestrator"))).toBeTrue();
   expect(commands.some((command) => command[1] === "attach-session")).toBeFalse();
   expect(
     commands.some((command) => command.includes("pane-border-status") && command.includes("top")),
   ).toBeTrue();
   expect(commands.some((command) => command.includes("pane-border-format"))).toBeTrue();
+  expect(
+    commands.some((command) => command.includes("mouse") && command.includes("on")),
+  ).toBeTrue();
+  expect(
+    commands.some((command) => command.includes("history-limit") && command.includes("5000")),
+  ).toBeTrue();
+  expect(
+    commands.some(
+      (command) =>
+        command.includes("resize-pane") && command.some((value) => value.includes("{bottom-left}")),
+    ),
+  ).toBeTrue();
   const combined = commands.flat().join("\n");
   expect(combined).toContain(Role.Specifier);
   expect(combined).toContain(Role.Architect);
@@ -67,4 +79,5 @@ test("builds one tiled seven-pane agents window and a hidden orchestrator", asyn
   expect(combined).toContain("'/tmp/run with spaces'");
   expect(combined).toContain("dist/cli.js");
   expect(combined).toContain("dist/watch-role.js");
+  expect(combined).toContain("dist/watch-summary.js");
 });

@@ -17,8 +17,12 @@ describe("web application template", () => {
 
     expect(files["index.html"]).toContain("/src/apps/purchase-orders/frontend/main.tsx");
     expect(files["src/apps/purchase-orders/frontend/app.tsx"]).toContain(
-      "<h1>purchase-orders</h1>",
+      '<h1 id="application-title">purchase-orders</h1>',
     );
+    expect(files["src/apps/purchase-orders/backend/server.ts"]).toContain(
+      "export function handleRequest",
+    );
+    expect(files["test/e2e/purchase-orders-smoke.e2e.ts"]).toContain("All systems ready");
     expect(files["drizzle.config.ts"]).toContain('url: "./.data/purchase-orders.sqlite"');
     expect(files[".github/workflows/ci.yml"]).toContain("bun-version: 1.3.10");
     expect(files[".github/workflows/ci.yml"]).toContain("actions/checkout@v6");

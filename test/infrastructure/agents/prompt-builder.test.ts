@@ -162,6 +162,17 @@ test("projects role-specific context and caches the workspace inventory", async 
     feedback: null,
     publishedSpecification: publishedSpecificationFactory(),
   });
+  created.state.localChecks.push({
+    sequence: 1,
+    turn: 2,
+    role: Role.FrontendCoder,
+    kind: "quality-gate",
+    createdAt: new Date().toISOString(),
+    passed: true,
+    summary: "Browser verification passed.",
+    details: [],
+    commands: [{ command: "bun run test:e2e", exitCode: 0, output: "7 passed" }],
+  });
   await saveRunState(created.runDirectory, created.state);
 
   const prompt = await buildAgentPrompt({
@@ -177,7 +188,10 @@ test("projects role-specific context and caches the workspace inventory", async 
   expect(prompt).toContain("Use workspace-relative paths for all file edits");
   expect(prompt).toContain("Do not pass an absolute path to a file-edit tool");
   expect(prompt).toContain("Use focused checks while you edit");
-  expect(prompt).toContain("Run each full workspace quality script only once");
+  expect(prompt).toContain("Do not run full workspace format, lint, typecheck, test");
+  expect(prompt).toContain("Do not start a local development server");
+  expect(prompt).toContain("Browser verification passed");
+  expect(prompt).toContain("bun run test:e2e: exit 0");
   expect(prompt).toContain("LATEST_QA_FEEDBACK");
   expect(prompt).not.toContain("IRRELEVANT_SPECIFIER_HISTORY");
   expect(prompt).not.toContain("Feature: Old");

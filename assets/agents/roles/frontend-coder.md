@@ -37,6 +37,9 @@ Use semantic HTML and labeled controls. Support keyboard operation and
 predictable focus. Use existing components and design tokens.
 Keep line, function, and statement coverage at or above the configured limits.
 
+Do not start Vite or run Playwright inside the agent sandbox. The controller
+runs browser tests after the turn and returns exact failures.
+
 Give first priority to business rules and pure functions. Test pure state
 changes, validation, and formatting directly. Test components through visible
 behavior. Do not test component internals.

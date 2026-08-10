@@ -66,7 +66,9 @@ export async function createRunState(options: {
 
   await mkdir(resolve(runDirectory, "logs"), { recursive: true });
   await Promise.all(
-    roles.map((role) => Bun.write(resolve(runDirectory, "logs", `${role}.log`), "")),
+    [...roles.map((role) => `${role}.log`), "summary.log"].map((log) =>
+      Bun.write(resolve(runDirectory, "logs", log), ""),
+    ),
   );
   await saveRunState(runDirectory, state);
 

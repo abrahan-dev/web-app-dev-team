@@ -84,7 +84,11 @@ The specifier shows a Gherkin specification before implementation starts.
 Enter `a` to approve it. Enter `c` to request changes.
 
 The dashboard marks the current role with a dark `● WORKING` label in its pane
-border. Other role labels keep their role colors.
+border. Animated dots show that background work continues. Other role labels
+keep their role colors.
+
+The eighth pane shows the run summary and important workflow events. Each role
+pane shows only its own agent output and relevant handoffs.
 
 The pane border shows live active time for each role. The active pane also shows
 the total run time since the initial prompt. A returning role continues from its
@@ -94,6 +98,9 @@ Token totals include input and output tokens from all model requests in a role
 turn. Cached input is part of the input total. The dashboard shows cached input
 separately. This value helps you distinguish repeated cached context from new
 input.
+
+Use the mouse wheel to view pane history. You can also press the tmux prefix and
+`[` to enter copy mode. The dashboard keeps 5,000 lines for each pane.
 
 Each role receives only its relevant handoffs and a compact workspace
 inventory. An approved role receives the specification path and reads that
@@ -390,6 +397,10 @@ For a new project, a local bootstrap creates the fixed project files. It does
 not replace files in an existing project. It installs dependencies and runs
 the initial checks before a specialist starts.
 
+The full-stack template includes a `/health` endpoint and a minimal React
+screen. Unit tests verify the endpoint and the screen. A Playwright smoke test
+verifies the complete application before implementation starts.
+
 ```mermaid
 flowchart TD
   U["Human prompt"] --> S["Specifier"]
@@ -414,12 +425,12 @@ flowchart TD
     DC -->|Passed| BR
     BR -->|Yes| BE["Backend coder"]
     BR -->|No| FR2{"Frontend required?"}
-    BE -->|Continue| BC["Quality and coverage gate"]
+    BE -->|Continue| BC["Core quality gate"]
     BC -->|Failed| BE
     BC -->|Passed| FR2
     FR2 -->|Yes| FE["Frontend coder"]
     FR2 -->|No| Q["QA"]
-    FE -->|Continue| FC["Quality and coverage gate"]
+    FE -->|Continue| FC["Quality and browser gate"]
     FC -->|Failed| FE
     FC -->|Passed| Q
   end
@@ -429,7 +440,7 @@ flowchart TD
   BE -->|Blocker| A
   FE -->|Blocker| A
 
-  Q -->|Passed| QC["Final coverage gate"]
+  Q -->|Passed| QC["Final quality, browser, and coverage gate"]
   QC -->|Failed| Q
   QC -->|Passed| C["Complete"]
   Q -->|Failed| O{"Declared failure owner"}

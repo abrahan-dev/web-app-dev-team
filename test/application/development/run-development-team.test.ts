@@ -219,12 +219,15 @@ describe("development team orchestration", () => {
     expect(architectLog).toContain("SPECIFIER → ARCHITECT");
     expect(architectLog).toContain("ARCHITECT → UI-DESIGNER");
     expect(architectLog).toContain("ARCHITECT WORKING");
-    expect(architectLog).toContain("THIS AGENT 120");
-    expect(architectLog).toContain("TEAM 840");
-    expect(architectLog).toContain("CACHED INPUT  THIS AGENT 40");
-    expect(architectLog).toContain("CACHED INPUT  THIS AGENT 40  ·  TEAM 280");
-    expect(architectLog).toContain("TIME  THIS AGENT");
-    expect(architectLog).toContain("·  RUN");
+    expect(architectLog).not.toContain("TEAM 840");
+    const summaryLog = await readFile(resolve(directory, "logs", "summary.log"), "utf8");
+    expect(summaryLog).toContain("│ TOKENS");
+    expect(summaryLog).toContain("120");
+    expect(summaryLog).toContain("840");
+    expect(summaryLog).toContain("│ CACHED INPUT");
+    expect(summaryLog).toContain("40");
+    expect(summaryLog).toContain("280");
+    expect(summaryLog).toContain("│ ACTIVE TIME");
   });
 
   test("skips UI and data specialists for a backend-only change", async () => {

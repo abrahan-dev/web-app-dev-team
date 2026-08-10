@@ -64,6 +64,7 @@ describe("deterministic workspace bootstrapper", () => {
       "bun run lint",
       "bun run typecheck",
       "bun run test",
+      "bun run test:e2e",
     ]);
     expect(result.createdFiles).toContain("src/contexts/purchasing/domain/.gitkeep");
     expect(result.createdFiles).toContain(".github/workflows/ci.yml");
@@ -71,6 +72,7 @@ describe("deterministic workspace bootstrapper", () => {
     expect(result.createdFiles).toContain("src/apps/purchase-orders/backend/server.ts");
     expect(result.createdFiles).toContain("src/apps/purchase-orders/frontend/main.tsx");
     expect(result.createdFiles).toContain("test/apps/purchase-orders/backend/server.test.ts");
+    expect(result.createdFiles).toContain("test/e2e/purchase-orders-smoke.e2e.ts");
     expect(result.createdFiles).toContain("bun.lock");
     expect(JSON.parse(await readFile(resolve(root, "package.json"), "utf8"))).toMatchObject({
       dependencies: {
@@ -142,7 +144,7 @@ describe("deterministic workspace bootstrapper", () => {
 
     expect(resumed.status).toBe("created");
     expect(resumed.createdFiles).toEqual([]);
-    expect(resumed.commands).toHaveLength(7);
+    expect(resumed.commands).toHaveLength(8);
   });
 
   test("omits frontend and persistence scaffolding for a backend-only plan", async () => {

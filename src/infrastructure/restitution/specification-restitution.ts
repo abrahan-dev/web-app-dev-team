@@ -157,7 +157,11 @@ export async function createRestitution(options: {
 
   await mkdir(resolve(directory, "logs"), { recursive: true });
   await mkdir(resolve(directory, "results"), { recursive: true });
-  await Promise.all(roles.map((role) => Bun.write(resolve(directory, "logs", `${role}.log`), "")));
+  await Promise.all(
+    [...roles.map((role) => `${role}.log`), "summary.log"].map((log) =>
+      Bun.write(resolve(directory, "logs", log), ""),
+    ),
+  );
   await Bun.write(resolve(directory, "progress.log"), "");
   await saveRestitutionState(directory, state);
 
@@ -225,9 +229,9 @@ async function createSequenceRun(
   });
 
   await Promise.all(
-    roles.map((role) =>
+    [...roles.map((role) => `${role}.log`), "summary.log"].map((log) =>
       appendFile(
-        resolve(directory, "logs", `${role}.log`),
+        resolve(directory, "logs", log),
         `\n=== RESTITUTION SEQUENCE ${target.sequence}: ${target.featureId} ===\n`,
       ),
     ),
@@ -259,7 +263,9 @@ async function reportProgress(directory: string, message: string): Promise<void>
   console.log(line);
   await appendFile(resolve(directory, "progress.log"), `${line}\n`);
   await Promise.all(
-    roles.map((role) => appendFile(resolve(directory, "logs", `${role}.log`), `\n${line}\n`)),
+    [...roles.map((role) => `${role}.log`), "summary.log"].map((log) =>
+      appendFile(resolve(directory, "logs", log), `\n${line}\n`),
+    ),
   );
 }
 

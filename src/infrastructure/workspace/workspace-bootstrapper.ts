@@ -22,6 +22,7 @@ function validationCommands(plan: ChangePlan): string[][] {
     ["bun", "run", "lint"],
     ["bun", "run", "typecheck"],
     ["bun", "run", "test"],
+    ...(plan.frontendRequired ? [["bun", "run", "test:e2e"]] : []),
   ];
 }
 

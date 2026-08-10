@@ -126,7 +126,10 @@ function frontendFiles(applicationName: string): Record<string, string> {
       variables,
     ),
     "playwright.config.ts": template("frontend/playwright.config.ts.tmpl"),
-    "test/e2e/.gitkeep": "",
+    [`test/e2e/${applicationName}-smoke.e2e.ts`]: renderTemplate(
+      "frontend/smoke.e2e.ts.tmpl",
+      variables,
+    ),
     "vite.config.ts": template("frontend/vite.config.ts.tmpl"),
   };
 }

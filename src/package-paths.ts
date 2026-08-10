@@ -4,6 +4,7 @@ export const packageRoot = resolve(import.meta.dir, "..");
 export const assetsRoot = resolve(packageRoot, "assets");
 export const cliEntryPath = resolve(packageRoot, "dist/cli.js");
 export const roleWatcherPath = resolve(packageRoot, "dist/watch-role.js");
+export const summaryWatcherPath = resolve(packageRoot, "dist/watch-summary.js");
 export const packageJsonPath = resolve(packageRoot, "package.json");
 export const agentRolesRoot = resolve(assetsRoot, "agents/roles");
 export const agentSchemasRoot = resolve(assetsRoot, "agents/output-schemas");

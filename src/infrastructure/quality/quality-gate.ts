@@ -129,6 +129,12 @@ export async function runQualityGate(options: QualityGateOptions): Promise<Local
     options.runScripts === false
       ? []
       : preferredScripts.filter((script) => Object.hasOwn(options.facts.scripts, script));
+  const browserScripts = new Set(["test:e2e", "test:playwright"]);
+
+  if (options.runBrowserTests === false) {
+    selectedScripts = selectedScripts.filter((script) => !browserScripts.has(script));
+  }
+
   const coverageScriptExists = Object.hasOwn(options.facts.scripts, "test:coverage");
 
   if (options.runCoverage && coverageScriptExists) {

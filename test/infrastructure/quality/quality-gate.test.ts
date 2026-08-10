@@ -93,6 +93,25 @@ describe("local quality gate commands", () => {
     expect(result.commands[3]?.output).toContain("coverage ok");
   });
 
+  test("keeps browser scripts for the final gate only", async () => {
+    const root = await workspace({
+      test: "bun -e \"console.log('unit ok')\"",
+      "test:e2e": "bun -e \"console.log('e2e must not run')\"",
+    });
+
+    const result = await runQualityGate({
+      workspace: root,
+      facts: await inspectWorkspace(root),
+      changedFiles: [],
+      turn: 1,
+      sequence: 1,
+      role: Role.BackendCoder,
+      runBrowserTests: false,
+    });
+
+    expect(result.commands.map(({ command }) => command)).toEqual(["bun run test"]);
+  });
+
   test("runs coverage alone and fails when its script is missing", async () => {
     const coveredRoot = await workspace({
       test: "bun -e \"console.log('test must not run')\"",

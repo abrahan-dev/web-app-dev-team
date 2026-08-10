@@ -185,6 +185,7 @@ export async function processQualityPhase(options: {
   const state = run.state;
   let { turn } = options;
   const coverageRequired = requiresCoverage(accepted.role, turn);
+  const codeWritingRole = isCodeWritingRole(accepted.role);
 
   if (!requiresQualityGate(accepted.role, turn)) {
     return { turn, repeatRole: false };
@@ -200,7 +201,8 @@ export async function processQualityPhase(options: {
     turn: state.turns,
     sequence: run.nextCheckSequence(),
     role: accepted.role,
-    runScripts: requiresAllScripts(accepted.role, turn),
+    runScripts: codeWritingRole || coverageRequired,
+    runBrowserTests: requiresAllScripts(accepted.role, turn) || coverageRequired,
     runCoverage: coverageRequired,
   });
   run.recordCheck(gate);

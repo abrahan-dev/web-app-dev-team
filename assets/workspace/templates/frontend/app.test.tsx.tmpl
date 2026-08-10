@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
+import { renderToStaticMarkup } from "react-dom/server";
 import { App } from "../../../../src/apps/{{applicationName}}/frontend/app.tsx";
 
-test("exports the application shell", () => {
-  expect(typeof App).toBe("function");
+test("renders the ready application shell", () => {
+  const markup = renderToStaticMarkup(<App />);
+
+  expect(markup).toContain("{{applicationName}}");
+  expect(markup).toContain("Checking services");
 });

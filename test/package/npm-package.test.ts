@@ -55,6 +55,7 @@ describe("npm package", () => {
     expect(files).toContain("bin/web-app-dev-team.cjs");
     expect(files).toContain("dist/cli.js");
     expect(files).toContain("dist/watch-role.js");
+    expect(files).toContain("dist/watch-summary.js");
     expect(files).toContain("assets/workspace/stack.json");
     expect(files).toContain("assets/agents/roles/specifier.md");
     expect(files).toContain("LICENSE");

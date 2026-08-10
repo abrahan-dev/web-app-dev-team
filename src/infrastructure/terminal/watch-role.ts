@@ -5,6 +5,7 @@ import {
   paneActivityCommand,
   paneIdentityCommands,
   paneStatus,
+  paneSpinnerCommand,
   paneTimingCommands,
   roleColors,
 } from "./active-role-accent.ts";
@@ -22,6 +23,9 @@ const pane = process.env.TMUX_PANE;
 let offset = 0;
 let active: boolean | undefined;
 let elapsed = "";
+let spinnerIndex = 0;
+let spinnerUpdatedAt = 0;
+const spinnerFrames = ["·", "··", "···"];
 const color = roleColors[role].ansi;
 console.log(`\u001b[1;${color}m╭──────────────────────────────────────────────╮`);
 console.log(`│  WEB APP DEV TEAM · ${role.toUpperCase().padEnd(22)}│`);
@@ -46,6 +50,12 @@ while (true) {
       if (status.active !== active) {
         runTmux(paneActivityCommand(pane, status.active));
         active = status.active;
+      }
+
+      if (status.active && Date.now() - spinnerUpdatedAt >= 500) {
+        runTmux(paneSpinnerCommand(pane, spinnerFrames[spinnerIndex] ?? "·"));
+        spinnerIndex = (spinnerIndex + 1) % spinnerFrames.length;
+        spinnerUpdatedAt = Date.now();
       }
 
       const nextElapsed = `${status.roleElapsed}:${status.runElapsed}`;

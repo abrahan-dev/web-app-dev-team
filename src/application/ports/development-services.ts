@@ -54,6 +54,7 @@ export interface QualityGateOptions {
   turn: number;
   sequence: number;
   role: Role;
+  runBrowserTests?: boolean;
   runScripts?: boolean;
   runCoverage?: boolean;
 }
