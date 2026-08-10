@@ -1,7 +1,8 @@
-import { open, stat } from "node:fs/promises";
+import { open, readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { roleSchema } from "../../domain/schemas.ts";
 import { Role } from "../../domain/roles.ts";
+import { paneActivityCommand, paneIdentityCommands, roleIsActive } from "./active-role-accent.ts";
 
 const runDirectory = process.argv[2];
 const role = roleSchema.parse(process.argv[3]);
@@ -11,7 +12,10 @@ if (!runDirectory) {
 }
 
 const logPath = resolve(runDirectory, "logs", `${role}.log`);
+const statePath = resolve(runDirectory, "state.json");
+const pane = process.env.TMUX_PANE;
 let offset = 0;
+let active: boolean | undefined;
 const colors = {
   [Role.Specifier]: "35",
   [Role.Architect]: "34",
@@ -27,7 +31,30 @@ console.log(`│  WEB APP DEV TEAM · ${role.toUpperCase().padEnd(22)}│`);
 console.log("╰──────────────────────────────────────────────╯\u001b[0m");
 console.log("Waiting for the development loop to start...\n");
 
+function runTmux(command: string[]): void {
+  Bun.spawnSync(command, { stderr: "ignore", stdout: "ignore" });
+}
+
+if (pane) {
+  for (const command of paneIdentityCommands(pane, role)) {
+    runTmux(command);
+  }
+}
+
 while (true) {
+  if (pane) {
+    try {
+      const nextActive = roleIsActive(await readFile(statePath, "utf8"), role);
+
+      if (nextActive !== active) {
+        runTmux(paneActivityCommand(pane, nextActive));
+        active = nextActive;
+      }
+    } catch {
+      // Keep the last accent while the controller replaces the state file.
+    }
+  }
+
   const info = await stat(logPath);
 
   if (info.size > offset) {

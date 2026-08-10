@@ -52,6 +52,10 @@ test("builds one tiled seven-pane agents window and a hidden orchestrator", asyn
   expect(commands.filter((command) => command[1] === "split-window")).toHaveLength(6);
   expect(commands.some((command) => command.includes("orchestrator"))).toBeTrue();
   expect(commands.some((command) => command[1] === "attach-session")).toBeFalse();
+  expect(
+    commands.some((command) => command.includes("pane-border-status") && command.includes("top")),
+  ).toBeTrue();
+  expect(commands.some((command) => command.includes("pane-border-format"))).toBeTrue();
   const combined = commands.flat().join("\n");
   expect(combined).toContain(Role.Specifier);
   expect(combined).toContain(Role.Architect);

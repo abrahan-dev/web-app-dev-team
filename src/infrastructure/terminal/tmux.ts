@@ -1,5 +1,6 @@
 import { roles } from "../../domain/schemas.ts";
 import { cliEntryPath, roleWatcherPath } from "../../package-paths.ts";
+import { paneBorderFormat } from "./active-role-accent.ts";
 
 export function assertTmuxInstalled(tmuxPath: string | null = Bun.which("tmux")): void {
   if (tmuxPath === null) {
@@ -91,6 +92,43 @@ export async function launchTmux(options: {
     ]);
     await options.runner.run(["tmux", "select-layout", "-t", `${session}:agents`, "tiled"]);
   }
+
+  await options.runner.run([
+    "tmux",
+    "set-option",
+    "-w",
+    "-t",
+    `${session}:agents`,
+    "pane-border-status",
+    "top",
+  ]);
+  await options.runner.run([
+    "tmux",
+    "set-option",
+    "-w",
+    "-t",
+    `${session}:agents`,
+    "pane-border-style",
+    "fg=colour250",
+  ]);
+  await options.runner.run([
+    "tmux",
+    "set-option",
+    "-w",
+    "-t",
+    `${session}:agents`,
+    "pane-active-border-style",
+    "fg=colour250",
+  ]);
+  await options.runner.run([
+    "tmux",
+    "set-option",
+    "-w",
+    "-t",
+    `${session}:agents`,
+    "pane-border-format",
+    paneBorderFormat,
+  ]);
 
   const controllerCommand = options.controllerCommand?.(session) ?? [
     "bun",

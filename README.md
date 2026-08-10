@@ -83,6 +83,9 @@ directory as an implicit workspace.
 The specifier shows a Gherkin specification before implementation starts.
 Enter `a` to approve it. Enter `c` to request changes.
 
+The dashboard marks the current role with a dark `● WORKING` label in its pane
+border. Other role labels stay muted.
+
 Use `--detach` to run the tmux session in the background:
 
 ```bash
