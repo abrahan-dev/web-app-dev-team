@@ -470,6 +470,10 @@ Start the `Publish npm package`
 Action manually when the current `main` commit is ready for publication.
 Enter the exact semantic version, such as `0.1.0-beta.3` or `0.1.0`.
 
+The version must be equal to or greater than the current `package.json`
+version. A patch version, such as `0.1.1`, is greater than `0.1.0`. Use an equal
+version only to retry an incomplete release.
+
 The Action updates `package.json`. It runs all checks and builds the package. It
 commits the version, creates the Git tag, publishes to npm, and creates the
 GitHub Release. A version with a prerelease suffix uses the npm `next` tag. A
