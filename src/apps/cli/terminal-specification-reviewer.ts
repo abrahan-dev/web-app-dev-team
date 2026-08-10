@@ -6,6 +6,7 @@ import type {
   SpecificationReviewer,
 } from "../../application/ports/specification-reviewer.ts";
 import type { CommandRunner } from "../../infrastructure/terminal/tmux.ts";
+import { turnLimitLabel } from "../../domain/turn-limit.ts";
 
 type Ask = (prompt: string) => Promise<string>;
 
@@ -18,7 +19,9 @@ function printList(title: string, values: string[]): void {
 function renderReview({ specification, state }: SpecificationReviewContext): void {
   const tokens = new Intl.NumberFormat("en-US").format(state.tokenTotals.team.totalTokens);
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(`HUMAN REVIEW  ·  TURN ${state.turns}/${state.maxTurns}  ·  TEAM TOKENS ${tokens}`);
+  console.log(
+    `HUMAN REVIEW  ·  TURN ${state.turns}/${turnLimitLabel(state.maxTurns)}  ·  TEAM TOKENS ${tokens}`,
+  );
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`\nFeature: ${specification.featureId}`);
   console.log(`\n${specification.specification}`);

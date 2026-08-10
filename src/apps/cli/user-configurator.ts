@@ -6,6 +6,7 @@ import { createInterface } from "node:readline/promises";
 import { GitHubMcpPullRequestPublisher } from "../../infrastructure/git/github-mcp-publisher.ts";
 import { parseMcpArguments } from "../../infrastructure/git/config.ts";
 import { parseModelReasoningEffort } from "../../infrastructure/agents/codex/codex-agent-runner.ts";
+import { parseTurnLimit } from "../../domain/turn-limit.ts";
 import { parseEnvironmentFile } from "./configuration-loader.ts";
 import { installLinuxGithubMcp } from "./github-mcp-installer.ts";
 
@@ -78,12 +79,13 @@ const configurationSettings: ConfigurationSetting[] = [
     },
   },
   {
-    defaultValue: "12",
-    description:
-      "One turn is one role execution and handoff. The limit stops the run at this count.",
+    defaultValue: "unlimited",
+    description: "One turn is one role execution and handoff. Use unlimited or a positive limit.",
     label: "Maximum turns",
     name: "WEB_APP_DEV_TEAM_MAX_TURNS",
-    validate: (value) => validatePositiveInteger("WEB_APP_DEV_TEAM_MAX_TURNS", value),
+    validate: (value) => {
+      parseTurnLimit(value, "WEB_APP_DEV_TEAM_MAX_TURNS");
+    },
   },
   {
     defaultValue: "10",

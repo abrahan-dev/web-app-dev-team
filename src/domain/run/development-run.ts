@@ -12,6 +12,7 @@ import {
 } from "./run-state.ts";
 import { RunStatus, TurnDecision } from "../workflow-values.ts";
 import { recordTokenUsage } from "../token-usage.ts";
+import { extendedTurnLimit, unlimitedTurns } from "../turn-limit.ts";
 
 interface ExecutionObservations {
   commands: RunState["executions"][number]["commands"];
@@ -44,7 +45,7 @@ export class DevelopmentRun {
       throw new Error("Only a running development run can start an agent turn.");
     }
 
-    if (this.value.turns >= this.value.maxTurns) {
+    if (this.value.maxTurns !== unlimitedTurns && this.value.turns >= this.value.maxTurns) {
       throw new Error(`Maximum turn count (${this.value.maxTurns}) reached.`);
     }
   }
@@ -148,7 +149,7 @@ export class DevelopmentRun {
 
     this.value.status = RunStatus.Running;
     this.value.failure = null;
-    this.value.maxTurns = Math.max(this.value.maxTurns, maxTurns);
+    this.value.maxTurns = extendedTurnLimit(this.value.maxTurns, maxTurns);
   }
 
   recordCheck(check: LocalCheck): void {
@@ -239,7 +240,7 @@ export class DevelopmentRun {
       throw new Error("A completed development run cannot have a current role.");
     }
 
-    if (this.value.turns > this.value.maxTurns) {
+    if (this.value.maxTurns !== unlimitedTurns && this.value.turns > this.value.maxTurns) {
       throw new Error("A development run cannot exceed its turn limit.");
     }
 

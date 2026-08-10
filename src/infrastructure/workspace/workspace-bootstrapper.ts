@@ -12,13 +12,17 @@ import { webAppTemplate, webAppTemplateVersion } from "./templates/web-app.ts";
 
 const allowedMetadata = new Set([".DS_Store", ".git", ".web-app-dev-team", "specifications"]);
 const markerRelativePath = ".web-app-dev-team/bootstrap.json";
-const validationCommands = [
-  ["bun", "install"],
-  ["bun", "run", "format:check"],
-  ["bun", "run", "lint"],
-  ["bun", "run", "typecheck"],
-  ["bun", "run", "test"],
-] as const;
+
+function validationCommands(plan: ChangePlan): string[][] {
+  return [
+    ["bun", "install"],
+    ...(plan.frontendRequired ? [["bunx", "playwright", "install", "chromium"]] : []),
+    ["bun", "run", "format:check"],
+    ["bun", "run", "lint"],
+    ["bun", "run", "typecheck"],
+    ["bun", "run", "test"],
+  ];
+}
 
 export type BootstrapCommandRunner = (
   command: string[],
@@ -190,13 +194,14 @@ async function installedLockFile(workspace: string): Promise<string | null> {
 
 async function runBootstrapValidation(
   workspace: string,
+  plan: ChangePlan,
   runCommand: BootstrapCommandRunner,
 ): Promise<{ commands: LocalCommandResult[]; createdLockFile: string | null }> {
   const lockBeforeCommands = await installedLockFile(workspace);
   const commands: LocalCommandResult[] = [];
 
-  for (const command of validationCommands) {
-    const result = await runCommand([...command], workspace);
+  for (const command of validationCommands(plan)) {
+    const result = await runCommand(command, workspace);
     commands.push(result);
 
     if (result.exitCode !== 0) {
@@ -261,7 +266,7 @@ export class DeterministicWorkspaceBootstrapper implements WorkspaceBootstrapper
     }
 
     const createdFiles = await materializeTemplate(workspace, template);
-    const validation = await runBootstrapValidation(workspace, this.runCommand);
+    const validation = await runBootstrapValidation(workspace, plan, this.runCommand);
 
     if (validation.createdLockFile) {
       createdFiles.push(validation.createdLockFile);

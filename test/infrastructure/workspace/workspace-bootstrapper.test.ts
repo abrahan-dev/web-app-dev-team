@@ -58,6 +58,7 @@ describe("deterministic workspace bootstrapper", () => {
     });
     expect(result.commands.map(({ command }) => command)).toEqual([
       "bun install",
+      "bunx playwright install chromium",
       "bun run format:check",
       "bun run lint",
       "bun run typecheck",
@@ -140,7 +141,7 @@ describe("deterministic workspace bootstrapper", () => {
 
     expect(resumed.status).toBe("created");
     expect(resumed.createdFiles).toEqual([]);
-    expect(resumed.commands).toHaveLength(5);
+    expect(resumed.commands).toHaveLength(6);
   });
 
   test("omits frontend and persistence scaffolding for a backend-only plan", async () => {
@@ -154,6 +155,11 @@ describe("deterministic workspace bootstrapper", () => {
     expect(result.surfaces).toEqual(["backend"]);
     expect(result.createdFiles.some((path) => path.includes("/frontend/"))).toBe(false);
     expect(result.createdFiles).not.toContain("drizzle.config.ts");
+    expect(
+      result.commands
+        .map(({ command }) => command)
+        .some((command) => command.includes("playwright")),
+    ).toBe(false);
     expect(await readFile(resolve(root, ".github", "workflows", "ci.yml"), "utf8")).not.toContain(
       "playwright",
     );

@@ -128,6 +128,24 @@ describe("local quality gate commands", () => {
     );
   });
 
+  test("does not run unit tests twice when coverage is required", async () => {
+    const root = await workspace({
+      test: "bun -e \"console.log('duplicate unit run')\"",
+      "test:coverage": "bun -e \"console.log('coverage includes unit tests')\"",
+    });
+    const result = await runQualityGate({
+      workspace: root,
+      facts: await inspectWorkspace(root),
+      changedFiles: [],
+      turn: 1,
+      sequence: 1,
+      role: Role.FrontendCoder,
+      runCoverage: true,
+    });
+
+    expect(result.commands.map(({ command }) => command)).toEqual(["bun run test:coverage"]);
+  });
+
   test("fails when Bun reports coverage below the configured limit", async () => {
     const root = await workspace({ "test:coverage": "bun test --coverage" });
     await mkdir(resolve(root, "src"), { recursive: true });

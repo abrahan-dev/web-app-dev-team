@@ -44,7 +44,7 @@ describe("user configurator", () => {
     expect(await readFile(path, "utf8")).toContain("GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_test");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-5.6-luna");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=high");
-    expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=12");
+    expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=unlimited");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on");
     expect(await readFile(path, "utf8")).toContain(

@@ -71,9 +71,18 @@ function services(passed: boolean, requests: QualityGateOptions[]): DevelopmentS
 }
 
 describe("development quality phase", () => {
-  test("requests coverage after a backend turn", async () => {
+  test("runs structural checks without coverage after a backend turn", async () => {
     const run = DevelopmentRun.restore(runStateFactory());
-    const turn = backendHandoffFactory();
+    const backend = backendHandoffFactory();
+
+    if (backend.role !== Role.BackendCoder) {
+      throw new Error("The backend factory returned an invalid role.");
+    }
+
+    const turn: AgentTurn = {
+      ...backend,
+      nextRole: Role.Architect,
+    };
     const requests: QualityGateOptions[] = [];
 
     const result = await processQualityPhase({
@@ -85,7 +94,9 @@ describe("development quality phase", () => {
     });
 
     expect(result.repeatRole).toBe(false);
-    expect(requests).toMatchObject([{ role: Role.BackendCoder, runCoverage: true }]);
+    expect(requests).toMatchObject([
+      { role: Role.BackendCoder, runScripts: false, runCoverage: false },
+    ]);
   });
 
   test("returns failed final coverage to QA", async () => {

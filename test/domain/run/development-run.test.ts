@@ -90,6 +90,16 @@ describe("development run aggregate", () => {
     );
   });
 
+  test("permits unlimited turns", () => {
+    const run = DevelopmentRun.restore(runStateFactory({ maxTurns: 0 }));
+
+    for (let turn = 0; turn < 20; turn += 1) {
+      run.assertTurnAvailable();
+    }
+
+    expect(run.state.maxTurns).toBe(0);
+  });
+
   test("rejects unordered checks and a duplicate bootstrap", () => {
     const run = DevelopmentRun.restore(runStateFactory());
     const check: LocalCheck = {

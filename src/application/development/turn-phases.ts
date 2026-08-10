@@ -25,17 +25,11 @@ export interface TurnPhaseResult {
 }
 
 function requiresCoverage(role: Role, turn: AgentTurn): boolean {
-  return (
-    role === Role.BackendCoder ||
-    role === Role.FrontendCoder ||
-    (role === Role.Qa && turn.decision === TurnDecision.Complete)
-  );
+  return role === Role.Qa && turn.decision === TurnDecision.Complete;
 }
 
 function requiresQualityGate(role: Role, turn: AgentTurn): boolean {
-  return (
-    turn.nextRole !== Role.Architect && (isCodeWritingRole(role) || requiresCoverage(role, turn))
-  );
+  return isCodeWritingRole(role) || requiresCoverage(role, turn);
 }
 
 function requiresAllScripts(role: Role, turn: AgentTurn): boolean {

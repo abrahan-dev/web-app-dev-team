@@ -333,6 +333,9 @@ Rules:
 - Use workspace-relative paths for all file edits.
 - Do not pass an absolute path to a file-edit tool.
 - Do not run Git commands. The deterministic repository workflow owns Git operations.
+- Use focused checks while you edit.
+- Run each full workspace quality script only once near the end of the turn.
+- Repeat a full quality script only after a change that can affect its result.
 - The fixed product stack is TypeScript, Bun, tRPC, Zod, Drizzle ORM with bun:sqlite, React and Playwright.
 - Domain and application code lives under src/contexts; deployable applications live under src/apps/<application-name>/backend or frontend.
 - Treat prior summaries as context, but verify claims from files and commands.

@@ -65,3 +65,38 @@ test("enforces context/app topology and prevents frontend persistence access", a
   expect(violations.some((value) => value.includes("must select application"))).toBe(true);
   expect(violations.some((value) => value.includes("frontend cannot access"))).toBe(true);
 });
+
+test("accepts descriptive tests for a source file in the same product layer", async () => {
+  const root = await temporary.create("web-app-dev-team-test-subject-");
+  await mkdir(resolve(root, "src", "contexts", "orders", "application", "commands"), {
+    recursive: true,
+  });
+  await mkdir(resolve(root, "test", "contexts", "orders", "application"), {
+    recursive: true,
+  });
+  await writeFile(
+    resolve(root, "src", "contexts", "orders", "application", "commands", "submit-order.ts"),
+    "export const submitOrder = true;\n",
+  );
+  await writeFile(
+    resolve(root, "test", "contexts", "orders", "application", "submit-order.integration.test.ts"),
+    "export {};\n",
+  );
+
+  expect(await checkArchitecture(root)).toEqual([]);
+});
+
+test("rejects a test without a related source file", async () => {
+  const root = await temporary.create("web-app-dev-team-orphan-test-");
+  await mkdir(resolve(root, "src", "contexts", "orders", "domain"), { recursive: true });
+  await mkdir(resolve(root, "test", "contexts", "orders", "domain"), { recursive: true });
+  await writeFile(resolve(root, "src", "contexts", "orders", "domain", "order.ts"), "export {};\n");
+  await writeFile(
+    resolve(root, "test", "contexts", "orders", "domain", "customer.test.ts"),
+    "export {};\n",
+  );
+
+  expect((await checkArchitecture(root)).some((value) => value.includes("customer.test.ts"))).toBe(
+    true,
+  );
+});

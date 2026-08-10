@@ -17,7 +17,7 @@ export const restitutionStateSchema = z.object({
   currentSequence: z.number().int().positive().nullable(),
   resumeRole: roleSchema.nullable(),
   completedSequences: z.array(z.number().int().positive()),
-  maxTurnsPerSpecification: z.number().int().positive(),
+  maxTurnsPerSpecification: z.number().int().nonnegative(),
   failure: z.string().nullable(),
   tokenTotals: runStateSchema.shape.tokenTotals,
 });

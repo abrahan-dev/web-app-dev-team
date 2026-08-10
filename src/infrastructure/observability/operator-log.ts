@@ -13,6 +13,7 @@ import {
 } from "../../domain/schemas.ts";
 import { Role } from "../../domain/roles.ts";
 import { SpecificationReviewDecision } from "../../domain/workflow-values.ts";
+import { turnLimitLabel } from "../../domain/turn-limit.ts";
 
 const rule = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
 
@@ -123,7 +124,7 @@ export async function recordTurnStarted(
   await appendEveryRole(
     runDirectory,
     (paneRole) =>
-      `\n${rule}\n▶ TURN ${state.turns + 1}/${state.maxTurns}  ·  ${label(activeRole)} WORKING\n${tokenStatus(state, paneRole)}\n${rule}`,
+      `\n${rule}\n▶ TURN ${state.turns + 1}/${turnLimitLabel(state.maxTurns)}  ·  ${label(activeRole)} WORKING\n${tokenStatus(state, paneRole)}\n${rule}`,
   );
 }
 
@@ -138,7 +139,7 @@ export async function recordTurnCompleted(
   await appendEveryRole(
     runDirectory,
     (paneRole) =>
-      `\n✓ TURN ${state.turns}/${state.maxTurns}  ·  ${label(activeRole)} FINISHED  ·  ${turnTokens}\n${tokenStatus(state, paneRole)}`,
+      `\n✓ TURN ${state.turns}/${turnLimitLabel(state.maxTurns)}  ·  ${label(activeRole)} FINISHED  ·  ${turnTokens}\n${tokenStatus(state, paneRole)}`,
   );
 }
 

@@ -35,7 +35,7 @@ web-app-dev-team configure
 The command explains the required GitHub token permission. It tells you that
 the token input stays hidden. It repeats a question after invalid input. It
 creates the configuration directory with mode `700`. It creates `config.env`
-with mode `600`. It also requests the model, reasoning effort, turn limit,
+with mode `600`. It also requests the model, reasoning effort, optional turn limit,
 complexity limit, and architecture guard setting. Press Enter to use each
 default value.
 
@@ -154,6 +154,18 @@ The command prepares Git, creates the specification, requests human approval,
 and routes the approved work through the required roles. QA is the only role
 that can complete the run.
 
+Runs have no turn limit by default. Stop the tmux session to stop a run. Use
+`--max-turns <count>` when you need a fixed safety limit.
+
+Stop a run with the session name printed by `run`:
+
+```bash
+tmux kill-session -t web-app-dev-team-123456789
+```
+
+An existing configuration can still contain a finite limit. Run `configure`
+again and enter `unlimited` for `Maximum turns`.
+
 Run data is stored in:
 
 ```text
@@ -258,7 +270,7 @@ Common values:
 ```dotenv
 WEB_APP_DEV_TEAM_MODEL=gpt-5.6-luna
 WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=high
-WEB_APP_DEV_TEAM_MAX_TURNS=12
+WEB_APP_DEV_TEAM_MAX_TURNS=unlimited
 WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10
 WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on
 WEB_APP_DEV_TEAM_GIT_WORKFLOW=auto
@@ -275,8 +287,9 @@ The default reasoning effort is `high`. GPT-5.6 supports `none`, `low`,
 latency, and token use. See the
 [official OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model#update-api-and-model-parameters).
 
-One turn is one role execution and handoff. `WEB_APP_DEV_TEAM_MAX_TURNS` limits
-the total turns in one development run.
+One turn is one role execution and handoff. Runs are unlimited by default. Set
+`WEB_APP_DEV_TEAM_MAX_TURNS` to a positive integer to add a fixed safety limit.
+Service, account, and model limits can still stop an unlimited run.
 
 Pull request creation is enabled by default. Set
 `WEB_APP_DEV_TEAM_CREATE_PR=off` to disable it. When it is enabled, startup
@@ -459,17 +472,20 @@ bun run restore:resume -- --restore-dir /absolute/path/to/restitution-run
 bun run restore:status -- --restore-dir /absolute/path/to/restitution-run
 ```
 
-Each restitution specification has a separate turn limit. A skipped role does
-not use a turn.
+Each restitution specification has no turn limit by default. You can set a
+positive limit. A skipped role does not use a turn.
 
 ### Quality gates
 
 Before QA, the checks examine structure and complexity. They also run the
 available format, lint, typecheck, unit, integration, and E2E scripts.
 
-The controller runs `test:coverage` after backend and frontend work. It runs
-the script again after QA requests completion. A failure returns work to the
-role that ran the check.
+For new frontend applications, bootstrap installs the Playwright Chromium
+browser once. This prevents repeated E2E failures caused by a missing browser.
+
+The controller runs `test:coverage` after QA requests completion. The QA role
+does not run the same full coverage script itself. A failed QA gate returns the
+failure evidence to QA. QA then selects the responsible implementation role.
 
 New applications define coverage limits in `bunfig.toml`. The default limits
 are 80 percent for lines, functions, and statements. Browser E2E tests do not

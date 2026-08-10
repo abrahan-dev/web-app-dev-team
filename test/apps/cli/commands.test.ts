@@ -43,13 +43,17 @@ describe("CLI arguments", () => {
   });
 
   test("keeps max-turn precedence and validation explicit", () => {
+    delete process.env.WEB_APP_DEV_TEAM_MAX_TURNS;
+    expect(new CliArguments(["bun", "index.ts", "demo"]).maxTurns()).toBe(0);
+
     process.env.WEB_APP_DEV_TEAM_MAX_TURNS = "20";
 
     expect(new CliArguments(["bun", "index.ts", "demo"]).maxTurns()).toBe(20);
     expect(new CliArguments(["bun", "index.ts", "demo", "--max-turns", "8"]).maxTurns()).toBe(8);
-    expect(() => parseMaxTurns("0")).toThrow("must be a positive integer");
-    expect(() => parseMaxTurns("1.5")).toThrow("must be a positive integer");
-    expect(() => parseMaxTurns("invalid")).toThrow("must be a positive integer");
+    expect(parseMaxTurns("unlimited")).toBe(0);
+    expect(() => parseMaxTurns("0")).toThrow("must be a positive integer or unlimited");
+    expect(() => parseMaxTurns("1.5")).toThrow("must be a positive integer or unlimited");
+    expect(() => parseMaxTurns("invalid")).toThrow("must be a positive integer or unlimited");
   });
 
   test("dispatches every public command", async () => {

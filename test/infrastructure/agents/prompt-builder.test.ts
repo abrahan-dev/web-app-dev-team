@@ -176,6 +176,8 @@ test("projects role-specific context and caches the workspace inventory", async 
   expect(prompt).toContain("Do not run Git commands");
   expect(prompt).toContain("Use workspace-relative paths for all file edits");
   expect(prompt).toContain("Do not pass an absolute path to a file-edit tool");
+  expect(prompt).toContain("Use focused checks while you edit");
+  expect(prompt).toContain("Run each full workspace quality script only once");
   expect(prompt).toContain("LATEST_QA_FEEDBACK");
   expect(prompt).not.toContain("IRRELEVANT_SPECIFIER_HISTORY");
   expect(prompt).not.toContain("Feature: Old");

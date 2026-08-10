@@ -129,7 +129,7 @@ export const runStateSchema = z.object({
   status: z.enum(RunStatus),
   currentRole: roleSchema.nullable(),
   turns: z.number().int().nonnegative(),
-  maxTurns: z.number().int().positive(),
+  maxTurns: z.number().int().nonnegative(),
   messages: z.array(handoffSchema),
   specificationReviews: z.array(specificationReviewSchema).default([]),
   finalSummary: z.string().nullable(),

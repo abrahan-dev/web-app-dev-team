@@ -30,6 +30,7 @@ import { inspectSystem, renderDoctorChecks } from "./system-doctor.ts";
 import { loadConfiguration } from "./configuration-loader.ts";
 import { configureUser } from "./user-configurator.ts";
 import { assertCodexModelSupported } from "./codex-model-check.ts";
+import { parseTurnLimit } from "../../domain/turn-limit.ts";
 
 export type CommandHandler = (arguments_: CliArguments) => Promise<void>;
 export type CommandHandlers = Record<string, CommandHandler>;
@@ -63,7 +64,7 @@ export class CliArguments {
 
   maxTurns(): number {
     return parseMaxTurns(
-      this.optional("--max-turns") ?? process.env.WEB_APP_DEV_TEAM_MAX_TURNS ?? "12",
+      this.optional("--max-turns") ?? process.env.WEB_APP_DEV_TEAM_MAX_TURNS ?? "unlimited",
     );
   }
 }
@@ -78,11 +79,14 @@ Normal flow:
   web-app-dev-team doctor [--workspace <path>]
     Check the platform, required tools, authentication, and optional workspace.
 
-  web-app-dev-team run --workspace <path> --prompt <task> [--detach]
+  web-app-dev-team run --workspace <path> --prompt <task> [--detach] [--max-turns <count|unlimited>]
     Build one feature in a new or existing application.
 
   web-app-dev-team attach --session <name>
     Open a detached development or restitution session.
+
+  tmux kill-session -t <name>
+    Stop a development or restitution session.
 
 Recovery:
   web-app-dev-team git-resume --run-dir <path>
@@ -92,7 +96,7 @@ Restitution:
   web-app-dev-team restore --workspace <path> --specs-path <path>
     Rebuild a project from approved specifications.
 
-  web-app-dev-team restore:resume --restore-dir <path> [--max-turns <count>]
+  web-app-dev-team restore:resume --restore-dir <path> [--max-turns <count|unlimited>]
     Continue an interrupted restitution.
 
   web-app-dev-team restore:status --restore-dir <path>
@@ -122,13 +126,7 @@ export async function packageVersion(): Promise<string> {
 }
 
 export function parseMaxTurns(raw: string): number {
-  const parsed = Number(raw);
-
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new Error(`--max-turns must be a positive integer; got ${raw}.`);
-  }
-
-  return parsed;
+  return parseTurnLimit(raw, "--max-turns");
 }
 
 export function tokenSummary(totals: TokenTotals): string {

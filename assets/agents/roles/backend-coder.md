@@ -43,7 +43,8 @@ Give first priority to business rules and pure functions. Test inputs, outputs,
 boundaries, and invalid states. Do not test private implementation steps.
 
 Add repository integration tests. Add tRPC contract tests for procedures,
-errors, and authorization. Put tests in `test` with the same structure as `src`.
+errors, and authorization. Put tests in `test`. Keep the same product and layer
+structure as `src`. A test can use a descriptive name or a nested test subject.
 Keep line, function, and statement coverage at or above the configured limits.
 
 ## Handoff

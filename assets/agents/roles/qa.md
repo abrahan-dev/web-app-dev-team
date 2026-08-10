@@ -24,8 +24,9 @@ implementation code.
 Map each Gherkin scenario to executable evidence. Test applicable rejection,
 authorization, loading, and error behavior. Also test the successful path.
 
-Run the final coverage check. Add missing tests when coverage is below a
-configured limit. Browser E2E tests do not replace unit or integration coverage.
+The controller runs the final coverage check after this turn. Do not run the
+full coverage script yourself. Add missing tests when focused coverage evidence
+shows a gap. Browser E2E tests do not replace unit or integration coverage.
 
 Give first priority to missing tests for business rules and pure functions. Do
 not add a low-value test only to increase a coverage percentage.

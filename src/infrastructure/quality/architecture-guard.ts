@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { basename, dirname, relative, resolve } from "node:path";
 import { circularDependencies } from "./architecture/dependency-graph.ts";
 import {
   importRuleViolations,
@@ -90,12 +90,48 @@ async function testMirrorViolations(
   for (const testFile of testFiles) {
     const sourcePath = mirroredSourcePath(testFile);
 
-    if (sourcePath && !sourceFiles.has(resolve(workspace, sourcePath))) {
+    if (sourcePath && !hasRelatedSourceFile(workspace, sourcePath, sourceFiles)) {
       violations.push(`${testFile}: does not mirror an existing production path (${sourcePath}).`);
     }
   }
 
   return violations;
+}
+
+function subjectWords(path: string): string[] {
+  return basename(path)
+    .replace(/\.[^.]+$/u, "")
+    .split(".")[0]!
+    .split("-")
+    .filter(Boolean);
+}
+
+function hasRelatedSourceFile(
+  workspace: string,
+  expectedPath: string,
+  sourceFiles: Set<string>,
+): boolean {
+  const exactPath = resolve(workspace, expectedPath);
+
+  if (sourceFiles.has(exactPath)) {
+    return true;
+  }
+
+  const root = `${resolve(workspace, dirname(expectedPath))}/`;
+  const testWords = new Set(subjectWords(expectedPath));
+
+  return [...sourceFiles].some((sourceFile) => {
+    if (!sourceFile.startsWith(root)) {
+      return false;
+    }
+
+    const sourceWords = new Set(subjectWords(sourceFile));
+
+    return (
+      [...sourceWords].every((word) => testWords.has(word)) ||
+      [...testWords].every((word) => sourceWords.has(word))
+    );
+  });
 }
 
 export async function checkArchitecture(workspace: string): Promise<string[]> {
