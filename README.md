@@ -32,10 +32,10 @@ web-app-dev-team configure
 ```
 
 The command explains the required GitHub token permission. It tells you that
-the token input stays hidden. It creates the configuration directory with mode
-`700`. It creates `config.env` with mode `600`. It also requests the model,
-turn limit, complexity limit, and architecture guard setting. Press Enter to
-use each default value.
+the token input stays hidden. It repeats a question after invalid input. It
+creates the configuration directory with mode `700`. It creates `config.env`
+with mode `600`. It also requests the model, turn limit, complexity limit, and
+architecture guard setting. Press Enter to use each default value.
 
 The command also checks the GitHub MCP server. If it is missing, the command
 offers to install it. It uses Homebrew on macOS. It installs the official

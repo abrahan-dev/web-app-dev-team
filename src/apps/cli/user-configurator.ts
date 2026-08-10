@@ -130,10 +130,6 @@ async function writeSecureConfiguration(path: string, content: string): Promise<
   await rename(temporaryPath, path);
 }
 
-function isYes(answer: string): boolean {
-  return answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes";
-}
-
 async function terminalPrompt(question: string): Promise<string> {
   const terminal = createInterface({ input: process.stdin, output: process.stdout });
 
@@ -205,27 +201,83 @@ function validateToken(token: string): string {
   return value;
 }
 
+async function promptConfirmation(
+  question: string,
+  prompt: (question: string) => Promise<string>,
+  log: (message: string) => void,
+): Promise<boolean> {
+  while (true) {
+    const answer = (await prompt(question)).trim().toLowerCase();
+
+    if (answer === "y" || answer === "yes") {
+      return true;
+    }
+
+    if (!answer || answer === "n" || answer === "no") {
+      return false;
+    }
+
+    log("Enter y or n. Try again.");
+  }
+}
+
 async function configureToken(
   content: string,
   prompt: (question: string) => Promise<string>,
   promptSecret: (question: string) => Promise<string>,
+  log: (message: string) => void,
 ): Promise<{ content: string; token: string }> {
   const current = parseEnvironmentFile(content).GITHUB_PERSONAL_ACCESS_TOKEN;
 
-  if (current && !isYes(await prompt("A GitHub token exists. Replace it? [y/N] "))) {
+  if (
+    current &&
+    !(await promptConfirmation("A GitHub token exists. Replace it? [y/N] ", prompt, log))
+  ) {
     return { content, token: current };
   }
 
-  const token = validateToken(
-    await promptSecret(
+  let token: string | undefined;
+
+  while (!token) {
+    const value = await promptSecret(
       "GitHub personal access token (fine-grained; Pull requests: Read and write; input is hidden): ",
-    ),
-  );
+    );
+
+    try {
+      token = validateToken(value);
+    } catch (error) {
+      log(
+        error instanceof Error ? `${error.message} Try again.` : "The token is invalid. Try again.",
+      );
+    }
+  }
 
   return {
     content: setEnvironmentValue(content, "GITHUB_PERSONAL_ACCESS_TOKEN", token),
     token,
   };
+}
+
+async function promptSettingValue(
+  setting: ConfigurationSetting,
+  defaultValue: string,
+  prompt: (question: string) => Promise<string>,
+  log: (message: string) => void,
+): Promise<string> {
+  while (true) {
+    const answer = (await prompt(`${setting.label} [${defaultValue}]: `)).trim();
+    const value = answer || defaultValue;
+
+    try {
+      setting.validate(value);
+
+      return value;
+    } catch (error) {
+      log(
+        error instanceof Error ? `${error.message} Try again.` : "The value is invalid. Try again.",
+      );
+    }
+  }
 }
 
 async function configureRuntimeSettings(
@@ -240,9 +292,7 @@ async function configureRuntimeSettings(
   for (const setting of configurationSettings) {
     const defaultValue = current[setting.name] ?? environment[setting.name] ?? setting.defaultValue;
     log(setting.description);
-    const answer = (await prompt(`${setting.label} [${defaultValue}]: `)).trim();
-    const value = answer || defaultValue;
-    setting.validate(value);
+    const value = await promptSettingValue(setting, defaultValue, prompt, log);
     updated = setEnvironmentValue(updated, setting.name, value);
     environment[setting.name] = value;
   }
@@ -254,11 +304,17 @@ async function installMissingServer(
   dependencies: Required<
     Pick<
       ConfigureDependencies,
-      "architecture" | "home" | "installLinux" | "platform" | "prompt" | "run" | "which"
+      "architecture" | "home" | "installLinux" | "log" | "platform" | "prompt" | "run" | "which"
     >
   >,
 ): Promise<string | null> {
-  if (!isYes(await dependencies.prompt("Install the GitHub MCP server now? [y/N] "))) {
+  if (
+    !(await promptConfirmation(
+      "Install the GitHub MCP server now? [y/N] ",
+      dependencies.prompt,
+      dependencies.log,
+    ))
+  ) {
     return null;
   }
 
@@ -340,6 +396,7 @@ export async function configureUser(options: ConfigureDependencies = {}): Promis
     await readOptional(configPath),
     dependencies.prompt,
     dependencies.promptSecret,
+    dependencies.log,
   );
   configured.content = await configureRuntimeSettings(
     configured.content,
@@ -356,6 +413,7 @@ export async function configureUser(options: ConfigureDependencies = {}): Promis
       architecture: dependencies.architecture,
       home: dependencies.home,
       installLinux: dependencies.installLinux,
+      log: dependencies.log,
       platform: dependencies.platform,
       prompt: dependencies.prompt,
       run: dependencies.run,

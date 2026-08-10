@@ -114,13 +114,15 @@ describe("user configurator", () => {
     const home = await temporary.create("configure-decline-");
     const messages: string[] = [];
     let verified = false;
+    const installationAnswers = ["maybe", ""];
 
     await configureUser({
       environment: {},
       home,
       log: (message) => messages.push(message),
       platform: "linux",
-      prompt: async () => "",
+      prompt: async (question) =>
+        question.startsWith("Install") ? (installationAnswers.shift() ?? "") : "",
       promptSecret: async () => "github_pat_test",
       verify: async () => {
         verified = true;
@@ -129,6 +131,8 @@ describe("user configurator", () => {
     });
 
     expect(verified).toBe(false);
+    expect(installationAnswers).toHaveLength(0);
+    expect(messages.join("\n")).toContain("Enter y or n. Try again.");
     expect(messages.join("\n")).toContain("Install it before you use the app");
   });
 
@@ -160,5 +164,58 @@ describe("user configurator", () => {
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=20");
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=8");
     expect(content).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=off");
+  });
+
+  test("requests the token again after invalid input", async () => {
+    const home = await temporary.create("configure-token-retry-");
+    const messages: string[] = [];
+    const tokens = ["", "github_pat_valid"];
+
+    await configureUser({
+      environment: {},
+      home,
+      log: (message) => messages.push(message),
+      prompt: async () => "",
+      promptSecret: async () => tokens.shift() ?? "github_pat_valid",
+      verify: async () => {},
+      which: () => "/usr/local/bin/github-mcp-server",
+    });
+
+    const content = await readFile(join(home, ".config/web-app-dev-team/config.env"), "utf8");
+    expect(content).toContain("GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_valid");
+    expect(messages.join("\n")).toContain("Try again");
+    expect(tokens).toHaveLength(0);
+  });
+
+  test("requests runtime settings again after invalid input", async () => {
+    const home = await temporary.create("configure-setting-retry-");
+    const messages: string[] = [];
+    const answers: Record<string, string[]> = {
+      "Architecture guard": ["maybe", "off"],
+      "Codex model": ["invalid model", "gpt-valid"],
+      "Maximum cyclomatic complexity": ["0", "8"],
+      "Maximum turns": ["none", "20"],
+    };
+
+    await configureUser({
+      environment: {},
+      home,
+      log: (message) => messages.push(message),
+      prompt: async (question) => {
+        const entry = Object.entries(answers).find(([label]) => question.startsWith(label));
+
+        return entry?.[1].shift() ?? "";
+      },
+      promptSecret: async () => "github_pat_test",
+      verify: async () => {},
+      which: () => "/usr/local/bin/github-mcp-server",
+    });
+
+    const content = await readFile(join(home, ".config/web-app-dev-team/config.env"), "utf8");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-valid");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=20");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=8");
+    expect(content).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=off");
+    expect(messages.filter((message) => message.endsWith("Try again.")).length).toBe(4);
   });
 });
