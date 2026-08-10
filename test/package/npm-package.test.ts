@@ -21,16 +21,6 @@ let packResult: PackResult;
 
 beforeAll(async () => {
   temporaryDirectory = await mkdtemp(resolve(tmpdir(), "web-app-dev-team-package-"));
-  const build = Bun.spawnSync(["bun", "run", "build"], {
-    cwd: packageRoot,
-    stderr: "pipe",
-    stdout: "pipe",
-  });
-
-  if (build.exitCode !== 0) {
-    throw new Error(build.stderr.toString());
-  }
-
   const packed = Bun.spawnSync(
     ["npm", "pack", "--json", "--dry-run", "--cache", resolve(temporaryDirectory, "npm-cache")],
     { cwd: packageRoot, stderr: "pipe", stdout: "pipe" },
