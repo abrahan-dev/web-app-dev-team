@@ -124,6 +124,8 @@ export type GitWorkflowState = z.infer<typeof gitWorkflowStateSchema>;
 export const runStateSchema = z.object({
   version: z.literal(4),
   id: z.string(),
+  startedAt: z.string().nullable().default(null),
+  activeExecutionStartedAt: z.string().nullable().default(null),
   prompt: z.string().min(1),
   workspace: z.string().min(1),
   status: z.enum(RunStatus),

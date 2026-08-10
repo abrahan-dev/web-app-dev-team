@@ -71,10 +71,12 @@ export async function executeAgentTurn(options: {
   const role = run.currentRole();
 
   attempt.activeRole = role;
-  attempt.startedAt = new Date().toISOString();
   attempt.usage = null;
   attempt.executionRecorded = false;
   await journal.verify(state.workspace);
+  attempt.startedAt = new Date().toISOString();
+  run.startExecution(role, attempt.startedAt);
+  await services.runRepository.save(runDirectory, state);
   await services.operatorLog.turnStarted(runDirectory, state, role);
 
   const rawResult = await runner.run({ role, state, runDirectory });

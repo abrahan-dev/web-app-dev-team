@@ -58,6 +58,18 @@ export class DevelopmentRun {
     return this.value.currentRole;
   }
 
+  startExecution(role: Role, startedAt: string): void {
+    if (role !== this.currentRole()) {
+      throw new Error(`Cannot start ${role} while ${this.value.currentRole} is active.`);
+    }
+
+    if (this.value.activeExecutionStartedAt !== null) {
+      throw new Error("The active role already has an execution in progress.");
+    }
+
+    this.value.activeExecutionStartedAt = startedAt;
+  }
+
   approvedFeatureId(): string {
     const specification = this.value.specificationReviews.findLast(
       ({ publishedSpecification }) => publishedSpecification !== null,
@@ -105,11 +117,14 @@ export class DevelopmentRun {
     if (usage) {
       recordTokenUsage(this.value.tokenTotals, role, usage);
     }
+
+    this.value.activeExecutionStartedAt = null;
   }
 
   recordFailedAttempt(attempt: FailedAttempt): void {
     this.value.status = RunStatus.Failed;
     this.value.failure = attempt.failure;
+    this.value.activeExecutionStartedAt = null;
 
     if (!attempt.executionRecorded && attempt.role !== null) {
       this.value.executions.push({
@@ -238,6 +253,10 @@ export class DevelopmentRun {
 
     if (this.value.status === RunStatus.Completed && this.value.currentRole !== null) {
       throw new Error("A completed development run cannot have a current role.");
+    }
+
+    if (this.value.activeExecutionStartedAt !== null && this.value.currentRole === null) {
+      throw new Error("An execution in progress must have a current role.");
     }
 
     if (this.value.maxTurns !== unlimitedTurns && this.value.turns > this.value.maxTurns) {

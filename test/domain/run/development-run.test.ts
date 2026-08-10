@@ -11,6 +11,19 @@ import {
 } from "../../support/domain-factories.ts";
 
 describe("development run aggregate", () => {
+  test("records and clears the active execution start", () => {
+    const run = DevelopmentRun.restore(runStateFactory());
+
+    run.startExecution(Role.BackendCoder, "2026-08-09T00:00:00.000Z");
+    expect(run.state.activeExecutionStartedAt).toBe("2026-08-09T00:00:00.000Z");
+
+    run.recordExecution(Role.BackendCoder, "2026-08-09T00:00:00.000Z", null, {
+      commands: [],
+      changedFiles: [],
+    });
+    expect(run.state.activeExecutionStartedAt).toBeNull();
+  });
+
   test("records ordered executions and permits only QA completion", () => {
     const run = DevelopmentRun.restore(runStateFactory());
     const backend = backendHandoffFactory();
@@ -55,6 +68,8 @@ describe("development run aggregate", () => {
     const run = DevelopmentRun.restore(runStateFactory());
     const usage = tokenUsageFactory(12);
 
+    run.startExecution(Role.BackendCoder, "2026-08-09T00:00:00.000Z");
+
     run.recordFailedAttempt({
       role: Role.BackendCoder,
       startedAt: "2026-08-09T00:00:00.000Z",
@@ -64,6 +79,7 @@ describe("development run aggregate", () => {
     });
 
     expect(run.state.status).toBe(RunStatus.Failed);
+    expect(run.state.activeExecutionStartedAt).toBeNull();
     expect(run.state.executions).toMatchObject([
       { sequence: 1, role: Role.BackendCoder, status: RunStatus.Failed },
     ]);

@@ -14,6 +14,11 @@ import {
 import { Role } from "../../domain/roles.ts";
 import { SpecificationReviewDecision } from "../../domain/workflow-values.ts";
 import { turnLimitLabel } from "../../domain/turn-limit.ts";
+import {
+  formatElapsed,
+  roleElapsedMilliseconds,
+  runElapsedMilliseconds,
+} from "../../domain/run-timing.ts";
 
 const rule = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
 
@@ -113,6 +118,7 @@ function tokenStatus(state: RunState, paneRole: Role): string {
   return [
     `TOKENS  THIS AGENT ${count(roleUsage.totalTokens)}  ·  TEAM ${count(teamUsage.totalTokens)}`,
     `CACHED INPUT  THIS AGENT ${count(roleUsage.cachedInputTokens)}  ·  TEAM ${count(teamUsage.cachedInputTokens)}`,
+    `TIME  THIS AGENT ${formatElapsed(roleElapsedMilliseconds(state, paneRole))}  ·  RUN ${formatElapsed(runElapsedMilliseconds(state))}`,
   ].join("\n");
 }
 

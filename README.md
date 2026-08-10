@@ -86,6 +86,10 @@ Enter `a` to approve it. Enter `c` to request changes.
 The dashboard marks the current role with a dark `● WORKING` label in its pane
 border. Other role labels keep their role colors.
 
+The pane border shows live active time for each role. The active pane also shows
+the total run time since the initial prompt. A returning role continues from its
+prior active time. Human review time affects run time but not role active time.
+
 Token totals include input and output tokens from all model requests in a role
 turn. Cached input is part of the input total. The dashboard shows cached input
 separately. This value helps you distinguish repeated cached context from new

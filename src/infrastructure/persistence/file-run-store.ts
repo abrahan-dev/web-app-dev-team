@@ -23,6 +23,7 @@ export async function createRunState(options: {
   gitWorkflow?: RunState["gitWorkflow"];
 }): Promise<{ runDirectory: string; state: RunState }> {
   const id = `${Date.now()}-${safeId(options.prompt) || "task"}`;
+  const startedAt = new Date().toISOString();
   const runDirectory = resolve(
     options.runsRoot ?? options.workspace,
     ".web-app-dev-team",
@@ -32,6 +33,8 @@ export async function createRunState(options: {
   const state = runStateSchema.parse({
     version: 4,
     id,
+    startedAt,
+    activeExecutionStartedAt: null,
     prompt: options.prompt,
     workspace: resolve(options.workspace),
     status: RunStatus.Running,
@@ -44,7 +47,7 @@ export async function createRunState(options: {
         sequence: 0,
         from: "user",
         to: Role.Specifier,
-        createdAt: new Date().toISOString(),
+        createdAt: startedAt,
         turn: null,
       },
     ],

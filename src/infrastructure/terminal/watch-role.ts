@@ -4,8 +4,9 @@ import { roleSchema } from "../../domain/schemas.ts";
 import {
   paneActivityCommand,
   paneIdentityCommands,
+  paneStatus,
+  paneTimingCommands,
   roleColors,
-  roleIsActive,
 } from "./active-role-accent.ts";
 
 const runDirectory = process.argv[2];
@@ -20,6 +21,7 @@ const statePath = resolve(runDirectory, "state.json");
 const pane = process.env.TMUX_PANE;
 let offset = 0;
 let active: boolean | undefined;
+let elapsed = "";
 const color = roleColors[role].ansi;
 console.log(`\u001b[1;${color}m╭──────────────────────────────────────────────╮`);
 console.log(`│  WEB APP DEV TEAM · ${role.toUpperCase().padEnd(22)}│`);
@@ -39,11 +41,21 @@ if (pane) {
 while (true) {
   if (pane) {
     try {
-      const nextActive = roleIsActive(await readFile(statePath, "utf8"), role);
+      const status = paneStatus(await readFile(statePath, "utf8"), role);
 
-      if (nextActive !== active) {
-        runTmux(paneActivityCommand(pane, nextActive));
-        active = nextActive;
+      if (status.active !== active) {
+        runTmux(paneActivityCommand(pane, status.active));
+        active = status.active;
+      }
+
+      const nextElapsed = `${status.roleElapsed}:${status.runElapsed}`;
+
+      if (nextElapsed !== elapsed) {
+        for (const command of paneTimingCommands(pane, status)) {
+          runTmux(command);
+        }
+
+        elapsed = nextElapsed;
       }
     } catch {
       // Keep the last accent while the controller replaces the state file.

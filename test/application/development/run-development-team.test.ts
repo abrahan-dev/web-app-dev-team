@@ -223,6 +223,8 @@ describe("development team orchestration", () => {
     expect(architectLog).toContain("TEAM 840");
     expect(architectLog).toContain("CACHED INPUT  THIS AGENT 40");
     expect(architectLog).toContain("CACHED INPUT  THIS AGENT 40  ·  TEAM 280");
+    expect(architectLog).toContain("TIME  THIS AGENT");
+    expect(architectLog).toContain("·  RUN");
   });
 
   test("skips UI and data specialists for a backend-only change", async () => {
