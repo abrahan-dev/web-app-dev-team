@@ -216,7 +216,11 @@ async function configureToken(
     return { content, token: current };
   }
 
-  const token = validateToken(await promptSecret("GitHub personal access token: "));
+  const token = validateToken(
+    await promptSecret(
+      "GitHub personal access token (fine-grained; Pull requests: Read and write; input is hidden): ",
+    ),
+  );
 
   return {
     content: setEnvironmentValue(content, "GITHUB_PERSONAL_ACCESS_TOKEN", token),

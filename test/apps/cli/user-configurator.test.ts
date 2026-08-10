@@ -16,6 +16,7 @@ describe("user configurator", () => {
     const environment: NodeJS.ProcessEnv = {};
     const messages: string[] = [];
     let verifiedCommand = "";
+    let secretQuestion = "";
 
     await configureUser({
       architecture: "x64",
@@ -25,7 +26,11 @@ describe("user configurator", () => {
       log: (message) => messages.push(message),
       platform: "linux",
       prompt: async (question) => (question.startsWith("Install") ? "yes" : ""),
-      promptSecret: async () => "github_pat_test",
+      promptSecret: async (question) => {
+        secretQuestion = question;
+
+        return "github_pat_test";
+      },
       verify: async (command) => {
         verifiedCommand = command;
       },
@@ -45,6 +50,9 @@ describe("user configurator", () => {
       `WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND=${verifiedCommand}`,
     );
     expect(environment.GITHUB_PERSONAL_ACCESS_TOKEN).toBe("github_pat_test");
+    expect(secretQuestion).toContain("fine-grained");
+    expect(secretQuestion).toContain("Pull requests: Read and write");
+    expect(secretQuestion).toContain("input is hidden");
     expect(messages.at(-1)).toBe("GitHub MCP server validation passed.");
   });
 
