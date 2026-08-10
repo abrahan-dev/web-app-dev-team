@@ -28,6 +28,7 @@ import { TerminalSpecificationReviewer } from "./terminal-specification-reviewer
 import { cliEntryPath, packageJsonPath } from "../../package-paths.ts";
 import { inspectSystem, renderDoctorChecks } from "./system-doctor.ts";
 import { loadConfiguration } from "./configuration-loader.ts";
+import { configureUser } from "./user-configurator.ts";
 
 export type CommandHandler = (arguments_: CliArguments) => Promise<void>;
 export type CommandHandlers = Record<string, CommandHandler>;
@@ -70,6 +71,7 @@ export const helpText = `web-app-dev-team builds web applications with specializ
 
 Usage:
   web-app-dev-team run --workspace <path> --prompt <task> [--detach]
+  web-app-dev-team configure
   web-app-dev-team doctor [--workspace <path>]
   web-app-dev-team restore --workspace <path> --specs-path <path>
   web-app-dev-team restore:resume --restore-dir <path> [--max-turns <count>]
@@ -370,6 +372,7 @@ const commandHandlers: CommandHandlers = {
   "--help": printHelp,
   "--version": printVersion,
   attach,
+  configure: () => configureUser(),
   doctor,
   help: printHelp,
   run: (arguments_) => startDevelopment(arguments_, false),

@@ -31,7 +31,22 @@ Check the local system:
 web-app-dev-team doctor
 ```
 
-The GitHub MCP server is required on macOS and Linux.
+Create the user configuration:
+
+```bash
+web-app-dev-team configure
+```
+
+The command requests the GitHub token without showing it. It creates the
+configuration directory with mode `700`. It creates `config.env` with mode
+`600`.
+
+The command also checks the GitHub MCP server. If it is missing, the command
+offers to install it. It uses Homebrew on macOS. It installs the official
+binary in `~/.local/bin` on Linux. The Linux installation does not use `sudo`.
+
+The GitHub MCP server is required on macOS and Linux. You can also install it
+manually.
 
 On macOS, install it with Homebrew:
 
@@ -39,31 +54,12 @@ On macOS, install it with Homebrew:
 brew install github-mcp-server
 ```
 
-On Linux, install the GitHub MCP server from the
+On Linux, get the GitHub MCP server from the
 [official releases](https://github.com/github/github-mcp-server/releases).
-
-After installation, create the user configuration directory:
-
-```bash
-mkdir -p ~/.config/web-app-dev-team
-chmod 700 ~/.config/web-app-dev-team
-```
-
-Create `~/.config/web-app-dev-team/config.env` with this value:
-
-```dotenv
-GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_...
-```
 
 Use a fine-grained personal access token. Give it access to each target
 repository. Set the `Pull requests` repository permission to `Read and write`.
 Do not put the token in shell history or commit it to Git.
-
-Protect the configuration file:
-
-```bash
-chmod 600 ~/.config/web-app-dev-team/config.env
-```
 
 ## Quick start
 
@@ -93,6 +89,17 @@ web-app-dev-team run \
 The command prints the tmux session name. Use that name with `attach`.
 
 ## Commands
+
+### `configure`
+
+Create secure user configuration and validate GitHub MCP access:
+
+```bash
+web-app-dev-team configure
+```
+
+The command keeps an existing token unless you approve its replacement. It
+asks before it installs the GitHub MCP server.
 
 ### `run`
 

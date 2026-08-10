@@ -58,6 +58,7 @@ describe("CLI arguments", () => {
       "--help",
       "--version",
       "attach",
+      "configure",
       "doctor",
       "run",
       "status",
@@ -112,6 +113,7 @@ describe("CLI arguments", () => {
   test("provides package help and version", async () => {
     expect(helpText).toContain("web-app-dev-team run");
     expect(helpText).toContain("web-app-dev-team doctor");
+    expect(helpText).toContain("web-app-dev-team configure");
     expect(helpText).toContain("web-app-dev-team restore:status");
     expect(helpText).not.toContain("web-app-dev-team status --restore-dir");
     expect(await packageVersion()).toBe(expectedPackageVersion);
