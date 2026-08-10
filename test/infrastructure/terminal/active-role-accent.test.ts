@@ -5,6 +5,7 @@ import {
   paneActivityCommand,
   paneBorderFormat,
   paneIdentityCommands,
+  roleColors,
   roleIsActive,
 } from "../../../src/infrastructure/terminal/active-role-accent.ts";
 
@@ -33,5 +34,7 @@ describe("active role pane accent", () => {
       "1",
     ]);
     expect(paneBorderFormat).toContain("● WORKING · #{pane_title}");
+    expect(paneBorderFormat).toContain(roleColors[Role.BackendCoder].tmux);
+    expect(paneBorderFormat).toContain("BACKEND-CODER");
   });
 });

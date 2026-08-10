@@ -106,7 +106,13 @@ async function appendEveryRole(
 }
 
 function tokenStatus(state: RunState, paneRole: Role): string {
-  return `TOKENS  THIS AGENT ${count(state.tokenTotals.byRole[paneRole].totalTokens)}  ·  TEAM ${count(state.tokenTotals.team.totalTokens)}`;
+  const roleUsage = state.tokenTotals.byRole[paneRole];
+  const teamUsage = state.tokenTotals.team;
+
+  return [
+    `TOKENS  THIS AGENT ${count(roleUsage.totalTokens)}  ·  TEAM ${count(teamUsage.totalTokens)}`,
+    `CACHED INPUT  THIS AGENT ${count(roleUsage.cachedInputTokens)}  ·  TEAM ${count(teamUsage.cachedInputTokens)}`,
+  ].join("\n");
 }
 
 export async function recordTurnStarted(

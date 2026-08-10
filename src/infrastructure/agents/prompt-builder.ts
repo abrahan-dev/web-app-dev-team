@@ -194,7 +194,20 @@ function relevantReview(context: AgentContext): string {
     (candidate) => candidate.decision === decision,
   );
 
-  return review ? describeSpecificationReview(review) : "none";
+  if (!review) {
+    return "none";
+  }
+
+  if (context.role === Role.Specifier) {
+    return describeSpecificationReview(review);
+  }
+
+  return [
+    `Feature ID: ${review.specification.featureId}`,
+    `Human decision: ${review.decision}`,
+    `Human feedback: ${review.feedback ?? "none"}`,
+    `Published artifact: ${review.publishedSpecification?.path ?? "none"}`,
+  ].join("\n");
 }
 
 function approvedArtifact(state: AgentContext["state"]): string {
@@ -317,6 +330,8 @@ ${localFeedbackSummary(context)}
 
 Rules:
 - Work on the task now using the tools available in this workspace.
+- Use workspace-relative paths for all file edits.
+- Do not pass an absolute path to a file-edit tool.
 - Do not run Git commands. The deterministic repository workflow owns Git operations.
 - The fixed product stack is TypeScript, Bun, tRPC, Zod, Drizzle ORM with bun:sqlite, React and Playwright.
 - Domain and application code lives under src/contexts; deployable applications live under src/apps/<application-name>/backend or frontend.

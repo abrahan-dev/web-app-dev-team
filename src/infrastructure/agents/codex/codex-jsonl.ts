@@ -131,7 +131,7 @@ function interpretCompletedTurn(event: JsonObject): InterpretedCodexEvent {
   });
 
   return {
-    display: `  CODEX ✓      ${tokenCount(usage.totalTokens)} tokens (${tokenCount(usage.inputTokens)} input · ${tokenCount(usage.outputTokens)} output)`,
+    display: `  CODEX ✓      ${tokenCount(usage.totalTokens)} tokens (${tokenCount(usage.inputTokens)} input · ${tokenCount(usage.cachedInputTokens)} cached · ${tokenCount(usage.outputTokens)} output)`,
     usage,
     command: null,
     changedFiles: [],

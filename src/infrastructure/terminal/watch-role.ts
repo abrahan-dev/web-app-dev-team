@@ -1,8 +1,12 @@
 import { open, readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { roleSchema } from "../../domain/schemas.ts";
-import { Role } from "../../domain/roles.ts";
-import { paneActivityCommand, paneIdentityCommands, roleIsActive } from "./active-role-accent.ts";
+import {
+  paneActivityCommand,
+  paneIdentityCommands,
+  roleColors,
+  roleIsActive,
+} from "./active-role-accent.ts";
 
 const runDirectory = process.argv[2];
 const role = roleSchema.parse(process.argv[3]);
@@ -16,16 +20,7 @@ const statePath = resolve(runDirectory, "state.json");
 const pane = process.env.TMUX_PANE;
 let offset = 0;
 let active: boolean | undefined;
-const colors = {
-  [Role.Specifier]: "35",
-  [Role.Architect]: "34",
-  [Role.UiDesigner]: "35",
-  [Role.DataEngineer]: "36",
-  [Role.BackendCoder]: "33",
-  [Role.FrontendCoder]: "34",
-  [Role.Qa]: "32",
-} as const;
-const color = colors[role];
+const color = roleColors[role].ansi;
 console.log(`\u001b[1;${color}m╭──────────────────────────────────────────────╮`);
 console.log(`│  WEB APP DEV TEAM · ${role.toUpperCase().padEnd(22)}│`);
 console.log("╰──────────────────────────────────────────────╯\u001b[0m");

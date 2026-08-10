@@ -84,7 +84,16 @@ The specifier shows a Gherkin specification before implementation starts.
 Enter `a` to approve it. Enter `c` to request changes.
 
 The dashboard marks the current role with a dark `● WORKING` label in its pane
-border. Other role labels stay muted.
+border. Other role labels keep their role colors.
+
+Token totals include input and output tokens from all model requests in a role
+turn. Cached input is part of the input total. The dashboard shows cached input
+separately. This value helps you distinguish repeated cached context from new
+input.
+
+Each role receives only its relevant handoffs and a compact workspace
+inventory. An approved role receives the specification path and reads that
+file. The prompt does not include the complete run state or source tree.
 
 Use `--detach` to run the tmux session in the background:
 

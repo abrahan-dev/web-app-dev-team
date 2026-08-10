@@ -9,12 +9,13 @@ import {
 } from "../../../src/infrastructure/agents/prompt-builder.ts";
 import { roles, type Handoff } from "../../../src/domain/schemas.ts";
 import { Role } from "../../../src/domain/roles.ts";
-import { TurnDecision } from "../../../src/domain/workflow-values.ts";
+import { SpecificationReviewDecision, TurnDecision } from "../../../src/domain/workflow-values.ts";
 import {
   createRunState,
   saveRunState,
 } from "../../../src/infrastructure/persistence/file-run-store.ts";
 import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
+import { publishedSpecificationFactory } from "../../support/domain-factories.ts";
 
 const temporary = new TemporaryWorkspaceManager();
 
@@ -145,8 +146,22 @@ test("projects role-specific context and caches the workspace inventory", async 
       },
     },
   ] satisfies Handoff[];
+  const specification = handoffs[0]?.turn;
+
+  if (!specification || specification.role !== Role.Specifier) {
+    throw new Error("The test specification handoff is invalid.");
+  }
+
   created.state.currentRole = Role.BackendCoder;
   created.state.messages.push(...handoffs);
+  created.state.specificationReviews.push({
+    id: "review-1",
+    createdAt: new Date().toISOString(),
+    specification,
+    decision: SpecificationReviewDecision.Approved,
+    feedback: null,
+    publishedSpecification: publishedSpecificationFactory(),
+  });
   await saveRunState(created.runDirectory, created.state);
 
   const prompt = await buildAgentPrompt({
@@ -159,8 +174,12 @@ test("projects role-specific context and caches the workspace inventory", async 
   expect(prompt).toContain("Required communication standard:");
   expect(prompt).toContain("ASD-STE100 Simplified Technical English");
   expect(prompt).toContain("Do not run Git commands");
+  expect(prompt).toContain("Use workspace-relative paths for all file edits");
+  expect(prompt).toContain("Do not pass an absolute path to a file-edit tool");
   expect(prompt).toContain("LATEST_QA_FEEDBACK");
   expect(prompt).not.toContain("IRRELEVANT_SPECIFIER_HISTORY");
+  expect(prompt).not.toContain("Feature: Old");
+  expect(prompt).toContain("Published artifact: specifications/000001-feature-1.feature");
   expect(prompt).toContain("Available scripts: lint, test");
   expect(prompt).not.toContain("Resolved stack catalog for new projects:");
 

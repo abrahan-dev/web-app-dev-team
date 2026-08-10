@@ -31,6 +31,7 @@ describe("Codex JSONL rendering", () => {
       totalTokens: 24_885,
     });
     expect(result.display).toContain("24,885 tokens");
+    expect(result.display).toContain("24,448 cached");
   });
 
   test("shows operational events but leaves final agent JSON to the handoff renderer", () => {
