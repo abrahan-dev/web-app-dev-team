@@ -72,7 +72,7 @@ describe("deterministic workspace bootstrapper", () => {
     expect(result.createdFiles).toContain("src/apps/purchase-orders/backend/server.ts");
     expect(result.createdFiles).toContain("src/apps/purchase-orders/frontend/main.tsx");
     expect(result.createdFiles).toContain("test/apps/purchase-orders/backend/server.test.ts");
-    expect(result.createdFiles).toContain("test/e2e/purchase-orders-smoke.e2e.ts");
+    expect(result.createdFiles).toContain("test/e2e/purchase-orders-smoke.spec.ts");
     expect(result.createdFiles).toContain("bun.lock");
     expect(JSON.parse(await readFile(resolve(root, "package.json"), "utf8"))).toMatchObject({
       dependencies: {

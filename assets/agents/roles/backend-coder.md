@@ -9,8 +9,8 @@ compatibility problem.
 Implement the domain, application use cases, and internal tRPC API. Follow the
 architect's plan. The API is your product.
 
-Use TDD. Do not design the UI. Do not change the persistence contract without
-approval.
+Use focused test-first development. Do not design the UI. Do not change the
+persistence contract without approval.
 
 ## Implementation structure
 
@@ -34,10 +34,12 @@ approval.
 - Do not add a second REST implementation.
 - Keep transport types out of domain objects.
 
-## TDD
+## Focused tests
 
-First, write a failing domain or use-case test. Then add the minimum code that
-makes the test pass. Refactor the code after the test passes.
+Write a focused test before a complex domain rule or use case. Add a regression
+test before you correct a confirmed defect. Do not demonstrate each failing
+test state in the agent log. Do not use a strict red-green cycle for simple
+structure or configuration.
 
 Give first priority to business rules and pure functions. Test inputs, outputs,
 boundaries, and invalid states. Do not test private implementation steps.
@@ -46,6 +48,9 @@ Add repository integration tests. Add tRPC contract tests for procedures,
 errors, and authorization. Put tests in `test`. Keep the same product and layer
 structure as `src`. A test can use a descriptive name or a nested test subject.
 Keep line, function, and statement coverage at or above the configured limits.
+
+Run only the focused tests that cover the current change. The controller runs
+the complete test suite after the turn.
 
 ## Handoff
 

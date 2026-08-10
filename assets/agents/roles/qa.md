@@ -31,6 +31,10 @@ Use the latest deterministic verification as executable evidence. Add missing
 tests when focused evidence shows a gap. Browser E2E tests do not replace unit
 or integration coverage.
 
+Do not repeat a focused test that already has current passing evidence. Do not
+require a coder to demonstrate a failing test before a correction. Add only the
+smallest test that proves a missing scenario or prevents a confirmed regression.
+
 Give first priority to missing tests for business rules and pure functions. Do
 not add a low-value test only to increase a coverage percentage.
 

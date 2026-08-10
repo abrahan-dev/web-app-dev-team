@@ -61,6 +61,10 @@ function summaryCommand(runDirectory: string): string {
   return ["bun", "run", summaryWatcherPath, runDirectory].map(shellQuote).join(" ");
 }
 
+function bottomRowResizeCommand(session: string): string {
+  return `resize-pane -t ${shellQuote(`${session}:agents.{bottom-left}`)} -x 33%`;
+}
+
 export async function launchTmux(options: {
   runner: CommandRunner;
   runDirectory: string;
@@ -114,6 +118,22 @@ export async function launchTmux(options: {
     `${session}:agents.{bottom-left}`,
     "-x",
     "33%",
+  ]);
+  await options.runner.run([
+    "tmux",
+    "set-hook",
+    "-t",
+    session,
+    "client-attached",
+    bottomRowResizeCommand(session),
+  ]);
+  await options.runner.run([
+    "tmux",
+    "set-hook",
+    "-t",
+    session,
+    "client-resized",
+    bottomRowResizeCommand(session),
   ]);
 
   await options.runner.run(["tmux", "set-option", "-t", session, "mouse", "on"]);

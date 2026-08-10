@@ -68,6 +68,22 @@ test("builds seven role panes, a wide summary pane, and a hidden orchestrator", 
         command.includes("resize-pane") && command.some((value) => value.includes("{bottom-left}")),
     ),
   ).toBeTrue();
+  expect(
+    commands.some(
+      (command) =>
+        command.includes("set-hook") &&
+        command.includes("client-attached") &&
+        command.some((value) => value.includes("resize-pane")),
+    ),
+  ).toBeTrue();
+  expect(
+    commands.some(
+      (command) =>
+        command.includes("set-hook") &&
+        command.includes("client-resized") &&
+        command.some((value) => value.includes("resize-pane")),
+    ),
+  ).toBeTrue();
   const combined = commands.flat().join("\n");
   expect(combined).toContain(Role.Specifier);
   expect(combined).toContain(Role.Architect);

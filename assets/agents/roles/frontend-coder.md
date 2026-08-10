@@ -44,6 +44,12 @@ Give first priority to business rules and pure functions. Test pure state
 changes, validation, and formatting directly. Test components through visible
 behavior. Do not test component internals.
 
+Write a focused test before complex state or interaction behavior. Add a
+regression test before you correct a confirmed defect. Implement simple UI
+structure without a strict red-green cycle. Do not demonstrate each failing
+test state in the agent log. Run only focused component tests during the turn.
+The controller runs the complete test suite after the turn.
+
 Do not create a second design system.
 
 ## Handoff

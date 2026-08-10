@@ -23,7 +23,7 @@ const inactivePaneLabel = roles.reduceRight(
   "#[fg=colour244] #{pane_title} #[default]",
 );
 
-export const paneBorderFormat = `#{?#{==:#{@web_app_role_active},1},#[fg=colour255 bg=colour236 bold] ● WORKING #{@web_app_spinner} · #{pane_title} · ACTIVE #{@web_app_role_elapsed} · RUN #{@web_app_run_elapsed} #[default],${inactivePaneLabel}}`;
+export const paneBorderFormat = `#{?#{==:#{@web_app_role_active},1},#[fg=colour255 bg=colour236 bold] ● WORKING · #{pane_title} · ACTIVE #{@web_app_role_elapsed} · RUN #{@web_app_run_elapsed} · #{@web_app_spinner} #[default],${inactivePaneLabel}}`;
 
 export interface PaneStatus {
   active: boolean;

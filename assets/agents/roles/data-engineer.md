@@ -44,7 +44,13 @@ Test migration order and empty-database creation. Test upgrades with typical old
 data. Test constraints and repository integration.
 
 Focus tests on business rules that persistence constraints must enforce. Test
-pure functions for mapping and transformation directly. Do not test ORM internals.
+pure functions for mapping and transformation directly. Write a focused test
+before a complex constraint, migration, or mapping. Add a regression test before
+you correct a confirmed defect. Do not demonstrate each failing test state. Do
+not test ORM internals.
+
+Run only focused migration and repository tests during the turn. The controller
+runs the complete test suite after the turn.
 
 Return to `architect` if the plan has a conflict or can cause data loss. In all
 other cases, send the work to the next necessary role.
