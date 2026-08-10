@@ -31,11 +31,34 @@ Check the local system:
 web-app-dev-team doctor
 ```
 
-On macOS, install the GitHub MCP server with Homebrew:
+The GitHub MCP server is required on macOS and Linux.
+
+On macOS, install it with Homebrew:
 
 ```bash
 brew install github-mcp-server
 ```
+
+On Linux, download the official prebuilt binary. Use `x86_64` for an Intel or
+AMD system. Use `arm64` for an ARM system.
+
+```bash
+MCP_ARCH=x86_64
+MCP_TEMP_DIR=$(mktemp -d)
+curl --fail --location \
+  "https://github.com/github/github-mcp-server/releases/latest/download/github-mcp-server_Linux_${MCP_ARCH}.tar.gz" \
+  --output "$MCP_TEMP_DIR/github-mcp-server.tar.gz"
+tar --extract --gzip \
+  --file "$MCP_TEMP_DIR/github-mcp-server.tar.gz" \
+  --directory "$MCP_TEMP_DIR"
+sudo install --mode 0755 \
+  "$MCP_TEMP_DIR/github-mcp-server" \
+  /usr/local/bin/github-mcp-server
+```
+
+See the
+[official GitHub MCP Server releases](https://github.com/github/github-mcp-server/releases)
+for all supported platforms.
 
 ## Quick start
 
