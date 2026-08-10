@@ -463,11 +463,20 @@ does not use an agent call to create this text.
 The package contains the compiled Bun entry points and required assets. It does
 not contain the application TypeScript source or tests.
 
-Pull requests and changes to `main` run CI. A published GitHub Release runs the
-npm publication workflow.
+Pull requests and changes to `main` run CI.
 
-The Git tag, GitHub Release, and `package.json` version must match. A prerelease
-uses the npm `next` tag. A stable release uses the npm `latest` tag.
+Start the `Publish npm package`
+
+Action manually when the current `main` commit is ready for publication.
+Enter the exact semantic version, such as `0.1.0-beta.3` or `0.1.0`.
+
+The Action updates `package.json`. It runs all checks and builds the package. It
+commits the version, creates the Git tag, publishes to npm, and creates the
+GitHub Release. A version with a prerelease suffix uses the npm `next` tag. A
+stable version uses the npm `latest` tag.
+
+The Action supports safe retries. It skips an npm version that it already
+published. It also skips an existing GitHub Release.
 
 Build and test a local archive:
 
@@ -479,6 +488,8 @@ npm run package:create
 
 Configure npm Trusted Publishing with the GitHub owner, repository,
 `publish-npm.yml` workflow name, and `npm` environment. Permit `npm publish`.
+The workflow needs permission to write repository contents. Repository rules
+must permit its release commit and tag.
 
 ### Code structure
 
