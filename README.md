@@ -25,12 +25,6 @@ Install the current test version:
 npm install --global @hagioscopio/web-app-dev-team@next
 ```
 
-Check the local system:
-
-```bash
-web-app-dev-team doctor
-```
-
 Create the user configuration:
 
 ```bash
@@ -63,6 +57,12 @@ On Linux, get the GitHub MCP server from the
 Use a fine-grained personal access token. Give it access to each target
 repository. Set the `Pull requests` repository permission to `Read and write`.
 Do not put the token in shell history or commit it to Git.
+
+Check the configured system:
+
+```bash
+web-app-dev-team doctor
+```
 
 ## Quick start
 
@@ -105,6 +105,23 @@ The command keeps an existing token unless you approve its replacement. It
 explains each runtime setting and offers its current or default value. It asks
 before it installs the GitHub MCP server. You can install the server later.
 
+### `doctor`
+
+Check the platform and required commands:
+
+```bash
+web-app-dev-team doctor
+```
+
+Add a workspace to check its access and Git repository:
+
+```bash
+web-app-dev-team doctor --workspace /absolute/path/to/project
+```
+
+The result uses `PASS`, `WARNING`, and `FAIL`. A blocking failure returns a
+nonzero exit code.
+
 ### `run`
 
 Start a development run for one feature request:
@@ -127,23 +144,6 @@ Run data is stored in:
 ```text
 <workspace>/.web-app-dev-team/runs/<run-id>/
 ```
-
-### `doctor`
-
-Check the platform and required commands:
-
-```bash
-web-app-dev-team doctor
-```
-
-Add a workspace to check its access and Git repository:
-
-```bash
-web-app-dev-team doctor --workspace /absolute/path/to/project
-```
-
-The result uses `PASS`, `WARNING`, and `FAIL`. A blocking failure returns a
-nonzero exit code.
 
 ### `restore`
 

@@ -67,19 +67,42 @@ export class CliArguments {
   }
 }
 
-export const helpText = `web-app-dev-team builds web applications with specialized Codex roles.
+export const helpText = `Web App Dev Team
+Build web applications with specialized Codex roles.
 
-Usage:
-  web-app-dev-team run --workspace <path> --prompt <task> [--detach]
+Normal flow:
   web-app-dev-team configure
+    Create secure user configuration and set the runtime options.
+
   web-app-dev-team doctor [--workspace <path>]
-  web-app-dev-team restore --workspace <path> --specs-path <path>
-  web-app-dev-team restore:resume --restore-dir <path> [--max-turns <count>]
-  web-app-dev-team restore:status --restore-dir <path>
+    Check the platform, required tools, authentication, and optional workspace.
+
+  web-app-dev-team run --workspace <path> --prompt <task> [--detach]
+    Build one feature in a new or existing application.
+
   web-app-dev-team attach --session <name>
+    Open a detached development or restitution session.
+
+Recovery:
   web-app-dev-team git-resume --run-dir <path>
+    Retry Git delivery without repeating completed agent work.
+
+Restitution:
+  web-app-dev-team restore --workspace <path> --specs-path <path>
+    Rebuild a project from approved specifications.
+
+  web-app-dev-team restore:resume --restore-dir <path> [--max-turns <count>]
+    Continue an interrupted restitution.
+
+  web-app-dev-team restore:status --restore-dir <path>
+    Show restitution progress without changing it.
+
+General:
   web-app-dev-team --help
+    Show this help text.
+
   web-app-dev-team --version
+    Show the installed package version.
 
 Requirements:
   Bun, tmux, Git, an authenticated Codex CLI, and the GitHub MCP server.

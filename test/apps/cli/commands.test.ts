@@ -116,6 +116,14 @@ describe("CLI arguments", () => {
     expect(helpText).toContain("web-app-dev-team configure");
     expect(helpText).toContain("web-app-dev-team restore:status");
     expect(helpText).not.toContain("web-app-dev-team status --restore-dir");
+    expect(helpText).toContain("Create secure user configuration");
+    expect(helpText).toContain("Build one feature");
+    expect(helpText.indexOf("web-app-dev-team configure")).toBeLessThan(
+      helpText.indexOf("web-app-dev-team doctor"),
+    );
+    expect(helpText.indexOf("web-app-dev-team doctor")).toBeLessThan(
+      helpText.indexOf("web-app-dev-team run"),
+    );
     expect(await packageVersion()).toBe(expectedPackageVersion);
   });
 });
