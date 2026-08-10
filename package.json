@@ -1,6 +1,6 @@
 {
   "name": "@hagioscopio/web-app-dev-team",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0-beta.2",
   "description": "A deterministic Codex team for building internal web applications.",
   "private": false,
   "type": "module",
@@ -47,7 +47,7 @@
     "tmux": "bun run build && bun run --env-file=.env dist/cli.js run",
     "restore": "bun run build && bun run --env-file=.env dist/cli.js restore",
     "restore:resume": "bun run build && bun run --env-file=.env dist/cli.js restore:resume",
-    "restore:status": "bun run build && bun run --env-file=.env dist/cli.js status",
+    "restore:status": "bun run build && bun run --env-file=.env dist/cli.js restore:status",
     "git:resume": "bun run build && bun run --env-file=.env dist/cli.js git-resume",
     "demo": "bun run build && bun run dist/cli.js demo",
     "format": "eslint . --fix && prettier --write .",

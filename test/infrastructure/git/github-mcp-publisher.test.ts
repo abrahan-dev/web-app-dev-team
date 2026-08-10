@@ -47,6 +47,18 @@ function connection(options: { tools?: string[]; isError?: boolean; url?: string
 }
 
 describe("GitHub MCP pull request publisher", () => {
+  test("verifies the required tool and closes the connection", async () => {
+    const fake = connection({});
+    const publisher = new GitHubMcpPullRequestPublisher(
+      { command: "github-mcp-server", arguments_: ["stdio"] },
+      () => fake.value,
+    );
+
+    await publisher.verify();
+
+    expect(fake.closed()).toBe(true);
+  });
+
   test("creates a pull request and closes the connection", async () => {
     const fake = connection({ url: "https://github.com/example/business-app/pull/7" });
     const publisher = new GitHubMcpPullRequestPublisher(

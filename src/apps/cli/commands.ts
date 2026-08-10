@@ -73,14 +73,14 @@ Usage:
   web-app-dev-team doctor [--workspace <path>]
   web-app-dev-team restore --workspace <path> --specs-path <path>
   web-app-dev-team restore:resume --restore-dir <path> [--max-turns <count>]
-  web-app-dev-team status --restore-dir <path>
+  web-app-dev-team restore:status --restore-dir <path>
   web-app-dev-team attach --session <name>
   web-app-dev-team git-resume --run-dir <path>
   web-app-dev-team --help
   web-app-dev-team --version
 
 Requirements:
-  Bun, tmux, Git, and an authenticated Codex CLI.
+  Bun, tmux, Git, an authenticated Codex CLI, and the GitHub MCP server.
 
 Run data:
   <workspace>/.web-app-dev-team/runs/<run-id>/`;
@@ -130,7 +130,7 @@ function printGitSummary(
 
   if (git.failure) {
     console.log(`Git failure: ${git.failure}`);
-    console.log(`Retry: bun run git:resume -- --run-dir ${runDirectory}`);
+    console.log(`Retry: web-app-dev-team git-resume --run-dir ${runDirectory}`);
     process.exitCode = 1;
   }
 }
@@ -187,7 +187,7 @@ async function executeRestitution(
     console.log(
       `Pending sequence: ${result.currentSequence ?? "unknown"}; resume agent: ${result.resumeRole ?? "unknown"}.`,
     );
-    console.log(`Resume with: bun run restore:resume -- --restore-dir ${directory}`);
+    console.log(`Resume with: web-app-dev-team restore:resume --restore-dir ${directory}`);
   }
 
   if (tmuxSession) {
@@ -372,6 +372,7 @@ const commandHandlers: CommandHandlers = {
   run: (arguments_) => startDevelopment(arguments_, false),
   status: restoreStatus,
   "git-resume": resume,
+  "restore:status": restoreStatus,
   "restore-status": restoreStatus,
   "restore-resume": restoreResume,
   restore: (arguments_) => launchRestitution(arguments_, false),

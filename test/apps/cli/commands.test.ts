@@ -62,6 +62,7 @@ describe("CLI arguments", () => {
       "run",
       "status",
       "git-resume",
+      "restore:status",
       "restore-status",
       "restore-resume",
       "restore",
@@ -111,6 +112,8 @@ describe("CLI arguments", () => {
   test("provides package help and version", async () => {
     expect(helpText).toContain("web-app-dev-team run");
     expect(helpText).toContain("web-app-dev-team doctor");
+    expect(helpText).toContain("web-app-dev-team restore:status");
+    expect(helpText).not.toContain("web-app-dev-team status --restore-dir");
     expect(await packageVersion()).toBe(expectedPackageVersion);
   });
 });

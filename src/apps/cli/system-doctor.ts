@@ -1,6 +1,10 @@
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import { resolve } from "node:path";
+import {
+  createPullRequestPublisher,
+  pullRequestCreationEnabled,
+} from "../../infrastructure/git/config.ts";
 
 export type DoctorStatus = "PASS" | "WARNING" | "FAIL";
 
@@ -63,6 +67,30 @@ function codexAuthenticationCheck(): DoctorCheck {
       };
 }
 
+async function githubMcpCheck(): Promise<DoctorCheck> {
+  const command = process.env.WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND ?? "github-mcp-server";
+
+  if (!Bun.which(command)) {
+    return { status: "FAIL", name: "GitHub MCP server", detail: `${command} is not in PATH.` };
+  }
+
+  try {
+    await createPullRequestPublisher()?.verify();
+
+    return {
+      status: "PASS",
+      name: "GitHub MCP server",
+      detail: "create_pull_request is available.",
+    };
+  } catch (error) {
+    return {
+      status: "FAIL",
+      name: "GitHub MCP server",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function inspectSystem(workspaceValue: string): Promise<DoctorCheck[]> {
   const workspace = resolve(workspaceValue);
   const platformSupported = process.platform === "darwin" || process.platform === "linux";
@@ -87,10 +115,8 @@ export async function inspectSystem(workspaceValue: string): Promise<DoctorCheck
     checks.push(codexAuthenticationCheck());
   }
 
-  if (process.env.WEB_APP_DEV_TEAM_CREATE_PR === "on") {
-    checks.push(
-      commandCheck(process.env.WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND ?? "github-mcp-server"),
-    );
+  if (pullRequestCreationEnabled()) {
+    checks.push(await githubMcpCheck());
   } else {
     checks.push({
       status: "WARNING",

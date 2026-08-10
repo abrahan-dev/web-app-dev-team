@@ -20,6 +20,7 @@ export interface PullRequestRequest {
 }
 
 export interface PullRequestPublisher {
+  verify(): Promise<void>;
   create(request: PullRequestRequest): Promise<{ url: string }>;
 }
 

@@ -93,7 +93,13 @@ describe("deterministic repository workflow", () => {
     runner.responses.set("diff --cached --quiet", { exitCode: 1 });
     runner.responses.set("rev-parse HEAD", { exitCode: 0, output: "commit-sha" });
     const requests: PullRequestRequest[] = [];
+    let verified = false;
     const publisher: PullRequestPublisher = {
+      verify() {
+        verified = true;
+
+        return Promise.resolve();
+      },
       create(value) {
         requests.push(value);
 
@@ -117,6 +123,7 @@ describe("deterministic repository workflow", () => {
     await workflow.createFeatureBranch(created.state, "approve-orders");
     await workflow.finalize(created.state);
 
+    expect(verified).toBe(false);
     expect(created.state.gitWorkflow).toMatchObject({
       featureBranch: "feat/approve-orders",
       commitSha: "commit-sha",
@@ -131,5 +138,28 @@ describe("deterministic repository workflow", () => {
     });
     expect(requests[0]?.body).toContain("## What");
     expect(requests[0]?.body).toContain("Implements `approve-orders`");
+  });
+
+  test("verifies the pull request publisher before Git preparation", async () => {
+    const root = await workspace();
+    const runner = new FakeGitRunner();
+    runner.responses.set("rev-parse --show-toplevel", { exitCode: 1 });
+    let verified = false;
+    const workflow = new DeterministicRepositoryWorkflow(runner, {
+      mode: "auto",
+      remote: "origin",
+      baseBranch: "main",
+      pullRequestPublisher: {
+        verify() {
+          verified = true;
+
+          return Promise.resolve();
+        },
+        create: () => Promise.resolve({ url: "https://github.com/example/repo/pull/1" }),
+      },
+    });
+
+    expect(await workflow.prepare(root)).toBeNull();
+    expect(verified).toBe(true);
   });
 });

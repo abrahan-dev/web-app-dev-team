@@ -1,23 +1,39 @@
 # Web App Dev Team
 
-Seven Codex roles build internal business applications. The orchestrator uses
-validated and deterministic handoffs.
+Web App Dev Team uses seven specialized Codex roles to build web
+applications.
+
+It turns one feature request into an approved specification,
+implementation, tests, and an optional pull request.
 
 ## Install
 
-The public npm package supports macOS and Linux. Install it globally:
+The package supports macOS and Linux.
+
+It requires Bun, tmux, Git, an authenticated Codex CLI, and
+`github-mcp-server`.
+
+Install the current stable version:
 
 ```bash
 npm install --global @hagioscopio/web-app-dev-team
 ```
 
-Run the system checks:
+Install the current test version:
+
+```bash
+npm install --global @hagioscopio/web-app-dev-team@next
+```
+
+Check the local system:
 
 ```bash
 web-app-dev-team doctor
 ```
 
-Start a development run:
+## Quick start
+
+Run one feature request against a project:
 
 ```bash
 web-app-dev-team run \
@@ -25,8 +41,236 @@ web-app-dev-team run \
   --prompt "Add approval rules to purchase orders"
 ```
 
-The installation does not require an npm account. Package publication requires
-access to the `hagioscopio` npm account.
+The specifier shows a Gherkin specification before implementation starts.
+Enter `a` to approve it. Enter `c` to request changes.
+
+Use `--detach` to run the tmux session in the background:
+
+```bash
+web-app-dev-team run \
+  --workspace /absolute/path/to/project \
+  --prompt "Add approval rules to purchase orders" \
+  --detach
+```
+
+The command prints the tmux session name. Use that name with `attach`.
+
+## Commands
+
+### `run`
+
+Start a development run for one feature request:
+
+```bash
+web-app-dev-team run \
+  --workspace /absolute/path/to/project \
+  --prompt "Add approval rules to purchase orders"
+```
+
+The command prepares Git, creates the specification, requests human approval,
+and routes the approved work through the required roles. QA is the only role
+that can complete the run.
+
+Run data is stored in:
+
+```text
+<workspace>/.web-app-dev-team/runs/<run-id>/
+```
+
+### `doctor`
+
+Check the platform, workspace, and required commands:
+
+```bash
+web-app-dev-team doctor --workspace /absolute/path/to/project
+```
+
+The result uses `PASS`, `WARNING`, and `FAIL`. A blocking failure returns a
+nonzero exit code.
+
+### `restore`
+
+Rebuild a fresh project from previously approved specifications:
+
+```bash
+web-app-dev-team restore \
+  --workspace /absolute/path/to/fresh-project \
+  --specs-path /absolute/path/to/specifications
+```
+
+The command verifies the specification hashes and implements each
+specification in sequence. It does not run the specifier or request another
+human approval. It records a checkpoint after QA completes each specification.
+
+Restitution data is stored in:
+
+```text
+<workspace>/.web-app-dev-team/restitutions/<restore-id>/
+```
+
+### `restore:resume`
+
+Continue a restitution after an interruption, failure, or turn limit:
+
+```bash
+web-app-dev-team restore:resume \
+  --restore-dir /absolute/path/to/restitution-run
+```
+
+Use a larger turn limit when the current specification needs more work:
+
+```bash
+web-app-dev-team restore:resume \
+  --restore-dir /absolute/path/to/restitution-run \
+  --max-turns 24
+```
+
+The command keeps completed specifications, checkpoints, token totals, and the
+current agent.
+
+### `restore:status`
+
+Show restitution progress without changing it:
+
+```bash
+web-app-dev-team restore:status \
+  --restore-dir /absolute/path/to/restitution-run
+```
+
+The output shows the overall state, completed specifications, current
+sequence, current agent, last failure, token totals, and progress log.
+
+### `attach`
+
+Open a tmux session that was started with `--detach`:
+
+```bash
+web-app-dev-team attach \
+  --session web-app-dev-team-123456789
+```
+
+Use the session name printed by `run` or `restore`.
+
+### `git-resume`
+
+Retry a failed Git delivery step:
+
+```bash
+web-app-dev-team git-resume \
+  --run-dir /absolute/path/to/run
+```
+
+Use this command after a branch, commit, push, or pull request failure. It uses
+the saved run state. It does not repeat agent work when only Git delivery
+remains.
+
+### Help and version
+
+```bash
+web-app-dev-team --help
+web-app-dev-team --version
+```
+
+## Configuration
+
+The command uses this configuration order:
+
+1. Command options.
+2. Environment variables.
+3. `<workspace>/.web-app-dev-team/config.env`.
+4. `~/.config/web-app-dev-team/config.env`.
+5. Default values.
+
+Common values:
+
+```dotenv
+WEB_APP_DEV_TEAM_MODEL=gpt-5.6-sol
+WEB_APP_DEV_TEAM_MAX_TURNS=12
+WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10
+WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on
+WEB_APP_DEV_TEAM_GIT_WORKFLOW=auto
+WEB_APP_DEV_TEAM_GIT_REMOTE=origin
+WEB_APP_DEV_TEAM_GIT_BASE_BRANCH=main
+WEB_APP_DEV_TEAM_CREATE_PR=on
+WEB_APP_DEV_TEAM_GITHUB_MCP_COMMAND=github-mcp-server
+WEB_APP_DEV_TEAM_GITHUB_MCP_ARGS=["stdio","--tools=create_pull_request"]
+GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_...
+```
+
+Pull request creation is enabled by default. Set
+`WEB_APP_DEV_TEAM_CREATE_PR=off` to disable it. When it is enabled, startup
+connects to the GitHub MCP server and requires its `create_pull_request` tool.
+
+Use a fine-grained personal access token for
+`GITHUB_PERSONAL_ACCESS_TOKEN`. Configure the token as follows:
+
+1. Select the owner of the target repository as the resource owner.
+2. Grant access to each target repository.
+3. Set the `Pull requests` repository permission to `Read and write`.
+
+GitHub grants the required `Metadata` read permission automatically. An
+organization can require token approval. The token cannot create pull requests
+for that organization until an administrator approves it.
+
+Create the token in
+[GitHub fine-grained personal access tokens](https://github.com/settings/personal-access-tokens/new).
+GitHub documents the required permission in
+[Create a pull request](https://docs.github.com/en/rest/pulls/pulls#create-a-pull-request).
+
+Do not commit secrets from a configuration file.
+
+## Update and remove
+
+Update the stable version:
+
+```bash
+npm install --global @hagioscopio/web-app-dev-team@latest
+```
+
+Remove the command:
+
+```bash
+npm uninstall --global @hagioscopio/web-app-dev-team
+```
+
+## Developers
+
+The following sections describe repository development and internal behavior.
+
+### Local setup
+
+Install Bun, tmux, Git, an authenticated `codex` CLI, and
+`github-mcp-server`. Install the repository dependencies:
+
+```bash
+bun install --frozen-lockfile
+```
+
+Run the local CLI:
+
+```bash
+bun run start -- \
+  --workspace /absolute/path/to/project \
+  --prompt "Add approval rules to purchase orders"
+```
+
+Run the deterministic demo and all checks:
+
+```bash
+bun run demo
+bun run check
+```
+
+Build and inspect the npm package:
+
+```bash
+bun run build
+npm run package:inspect
+```
+
+### Development workflow
+
+The orchestrator uses validated and deterministic handoffs:
 
 ```text
 specifier -> human review -> architect
@@ -41,7 +285,7 @@ QA is the only role that can complete a run. QA sends each failure to one
 specified owner.
 
 For a new project, a local bootstrap creates the fixed project files. It does
-not replace files in an existing project. It installs the dependencies and runs
+not replace files in an existing project. It installs dependencies and runs
 the initial checks before a specialist starts.
 
 ```mermaid
@@ -96,7 +340,7 @@ flowchart TD
 A specialist can send a technical conflict to the architect. The architect
 then changes the technical plan.
 
-## Product conventions
+### Product conventions
 
 ```text
 src/
@@ -115,74 +359,29 @@ pinned versions.
 The internal API uses `@trpc/openapi`. Do not use this API as a public
 compatibility contract.
 
-## Requirements and run
-
-Install Bun, tmux, Git, and an authenticated `codex` CLI. If tmux is not
-available, the application stops before it changes the target project.
-
-Use `doctor` to check the local system:
-
-```bash
-web-app-dev-team doctor --workspace /absolute/path/to/project
-```
-
-```bash
-web-app-dev-team run \
-  --workspace /absolute/path/to/project \
-  --prompt "Add approval rules to purchase orders"
-```
-
-Use `--detach` to keep the tmux session in the background. The tmux window shows
-the seven role logs. The specifier waits for `a` to approve or `c` to request
-changes.
-
-The application stores runs in
-`<workspace>/.web-app-dev-team/runs/<run-id>/`.
-
-## Specifications and restitution
+### Specifications and restitution
 
 After human approval, the application adds an immutable Gherkin file and hash
 to `specifications/manifest.json`.
 
-Restitution implements the specifications in creation order. It does not use
-the specifier or human review. It records a checkpoint only after QA completes.
+Restitution implements specifications in creation order. It records a
+checkpoint only after QA completes.
+
+Use the local scripts during repository development:
 
 ```bash
-web-app-dev-team restore \
+bun run restore -- \
   --workspace /absolute/path/to/fresh-project \
   --specs-path /absolute/path/to/specifications
 
-web-app-dev-team restore:resume --restore-dir /absolute/path/to/restitution-run
-web-app-dev-team status --restore-dir /absolute/path/to/restitution-run
+bun run restore:resume -- --restore-dir /absolute/path/to/restitution-run
+bun run restore:status -- --restore-dir /absolute/path/to/restitution-run
 ```
 
-Use `--max-turns 24` with `restore:resume` to increase an exhausted turn limit.
+Each restitution specification has a separate turn limit. A skipped role does
+not use a turn.
 
-## Configuration
-
-The command uses this configuration order:
-
-1. Command options.
-2. Environment variables.
-3. `<workspace>/.web-app-dev-team/config.env`.
-4. `~/.config/web-app-dev-team/config.env`.
-5. Default values.
-
-Do not commit secrets from a configuration file.
-
-```dotenv
-WEB_APP_DEV_TEAM_MODEL=gpt-5.6-sol
-WEB_APP_DEV_TEAM_MAX_TURNS=12
-WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10
-WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on
-```
-
-The turn-limit precedence is
-`--max-turns > WEB_APP_DEV_TEAM_MAX_TURNS > 12`.
-
-One turn is one accepted agent execution. A skipped role does not use a turn.
-Each restitution specification has a separate turn limit. A CLI option does not
-change `.env`.
+### Quality gates
 
 Before QA, the checks examine structure and complexity. They also run the
 available format, lint, typecheck, unit, integration, and E2E scripts.
@@ -191,29 +390,27 @@ The controller runs `test:coverage` after backend and frontend work. It runs
 the script again after QA requests completion. A failure returns work to the
 role that ran the check.
 
-New applications define the coverage limits in `bunfig.toml`. The default
-limits are 80 percent for lines, functions, and statements. Browser E2E tests
-do not replace unit or integration coverage.
+New applications define coverage limits in `bunfig.toml`. The default limits
+are 80 percent for lines, functions, and statements. Browser E2E tests do not
+replace unit or integration coverage.
 
-A failed check returns the work to the active role.
-
-## Continuous integration
+### Generated continuous integration
 
 The new-project bootstrap creates `.github/workflows/ci.yml`. The workflow runs
 for pull requests and pushes to `main`.
 
 It installs the pinned Bun version and uses the Bun cache. It then checks
-formatting, lint rules, types, and tests. A frontend project also runs Playwright
-with Chromium.
+formatting, lint rules, types, and tests. A frontend project also runs
+Playwright with Chromium.
 
-The workflow uses read-only repository permissions. It cancels an older run for
-the same branch.
+The workflow uses read-only repository permissions. It cancels an older run
+for the same branch.
 
-## Git workflow
+### Git workflow
 
 The local Git controller uses a fixed workflow. Agents do not run Git commands.
-This workflow applies to delivery runs. Restitution keeps its existing
-checkpoint workflow and does not run these Git operations.
+This workflow applies to delivery runs. Restitution keeps its checkpoint
+workflow and does not run these Git operations.
 
 At startup, the controller completes these steps:
 
@@ -236,74 +433,10 @@ feat: implement <featureId>
 The controller pushes the branch to the configured remote. It never uses
 `reset --hard`, deletes a branch, or removes project files.
 
-Set the Git configuration in the root `.env` file:
-
-```dotenv
-WEB_APP_DEV_TEAM_GIT_WORKFLOW=auto
-WEB_APP_DEV_TEAM_GIT_REMOTE=origin
-WEB_APP_DEV_TEAM_GIT_BASE_BRANCH=main
-```
-
 Use `on` to require a Git repository. Use `off` to disable the workflow. Use
 `auto` to skip Git for a workspace that is not a Git repository.
 
-If branch creation or final delivery fails, the run state records the step and
-error. Correct the external problem, and retry the step:
-
-```bash
-web-app-dev-team git-resume --run-dir /absolute/path/to/run
-```
-
-## Update and remove
-
-Install the current stable version:
-
-```bash
-npm install --global @hagioscopio/web-app-dev-team@latest
-```
-
-Install the current test version:
-
-```bash
-npm install --global @hagioscopio/web-app-dev-team@next
-```
-
-Remove the application:
-
-```bash
-npm uninstall --global @hagioscopio/web-app-dev-team
-```
-
-## Package release
-
-The npm package contains compiled Bun entry points and the required assets. It
-does not contain the TypeScript source or tests.
-
-Pull requests and changes to `main` run the CI workflow. A published GitHub
-Release runs the npm publication workflow.
-
-The Git tag, GitHub Release, and `package.json` version must match. A prerelease
-uses the npm `next` tag. A stable release uses the npm `latest` tag.
-
-Publish the first test version from an authenticated local terminal:
-
-```bash
-bun run check
-bun run build
-npm run package:create
-npm publish ./hagioscopio-web-app-dev-team-0.1.0-beta.1.tgz \
-  --access public \
-  --tag next
-```
-
-After the first publication, configure npm Trusted Publishing for GitHub
-Actions. Use the GitHub owner, repository, and `publish-npm.yml` workflow name.
-Permit `npm publish`. The workflow requires the `npm` GitHub environment.
-
-Publish later versions through a GitHub Release. Do not publish them from a
-local terminal.
-
-## Pull request creation
+### Pull request creation
 
 The controller can create a pull request through the official GitHub MCP
 server. Install and authenticate the local `github-mcp-server`. Enable only its
@@ -316,12 +449,38 @@ WEB_APP_DEV_TEAM_GITHUB_MCP_ARGS=["stdio","--tools=create_pull_request"]
 GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_...
 ```
 
-The controller reads
-[the pull request template](./assets/git/pull-request.md).
-It fills the template with the feature ID, role summaries, QA evidence, and
-local-check evidence. It does not use an agent call to create this text.
+Use a fine-grained token. Give it access to the target repositories. Set the
+`Pull requests` repository permission to `Read and write`. Do not give the token
+more access than this tool needs.
 
-## Code structure
+The controller reads
+[the pull request template](./assets/git/pull-request.md). It fills the template
+with the feature ID, role summaries, QA evidence, and local-check evidence. It
+does not use an agent call to create this text.
+
+### npm package release
+
+The package contains the compiled Bun entry points and required assets. It does
+not contain the application TypeScript source or tests.
+
+Pull requests and changes to `main` run CI. A published GitHub Release runs the
+npm publication workflow.
+
+The Git tag, GitHub Release, and `package.json` version must match. A prerelease
+uses the npm `next` tag. A stable release uses the npm `latest` tag.
+
+Build and test a local archive:
+
+```bash
+bun run check
+bun run build
+npm run package:create
+```
+
+Configure npm Trusted Publishing with the GitHub owner, repository,
+`publish-npm.yml` workflow name, and `npm` environment. Permit `npm publish`.
+
+### Code structure
 
 ```text
 assets/                 # Agent rules, schemas, stack data, and templates
@@ -336,7 +495,7 @@ The domain does not depend on the application or infrastructure. The
 application uses ports and does not depend on infrastructure adapters. The CLI
 is the composition root. Architecture tests enforce these rules.
 
-## Customize and verify
+### Customize and verify
 
 See the [asset configuration guide](./assets/README.md) for supported changes
 and source code boundaries.

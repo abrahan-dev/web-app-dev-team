@@ -74,6 +74,21 @@ export class GitHubMcpPullRequestPublisher implements PullRequestPublisher {
     private readonly connectionFactory: GitHubMcpConnectionFactory = createGitHubMcpConnection,
   ) {}
 
+  async verify(): Promise<void> {
+    const connection = this.connectionFactory(this.options);
+
+    try {
+      await connection.connect();
+      const tools = await connection.listToolNames();
+
+      if (!tools.includes("create_pull_request")) {
+        throw new Error("The GitHub MCP server does not provide create_pull_request.");
+      }
+    } finally {
+      await connection.close();
+    }
+  }
+
   async create(request: PullRequestRequest): Promise<{ url: string }> {
     const connection = this.connectionFactory(this.options);
 

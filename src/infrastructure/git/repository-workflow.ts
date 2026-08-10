@@ -69,6 +69,8 @@ export class DeterministicRepositoryWorkflow implements RepositoryWorkflow {
       return null;
     }
 
+    await this.options.pullRequestPublisher?.verify();
+
     const repositoryCheck = await this.git(["rev-parse", "--show-toplevel"], workspace);
 
     if (repositoryCheck.exitCode !== 0 && this.options.mode === "auto") {

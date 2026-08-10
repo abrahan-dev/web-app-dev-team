@@ -21,6 +21,20 @@ function mode(value = process.env.WEB_APP_DEV_TEAM_GIT_WORKFLOW ?? "auto"): GitW
   return parseGitWorkflowMode(value);
 }
 
+export function pullRequestCreationEnabled(
+  value = process.env.WEB_APP_DEV_TEAM_CREATE_PR ?? "on",
+): boolean {
+  if (value === "on") {
+    return true;
+  }
+
+  if (value === "off") {
+    return false;
+  }
+
+  throw new Error("WEB_APP_DEV_TEAM_CREATE_PR must be on or off.");
+}
+
 export function parseMcpArguments(raw: string): string[] {
   const arguments_ = JSON.parse(raw) as unknown;
 
@@ -31,8 +45,8 @@ export function parseMcpArguments(raw: string): string[] {
   return arguments_;
 }
 
-function pullRequestPublisher(): PullRequestPublisher | null {
-  if (process.env.WEB_APP_DEV_TEAM_CREATE_PR !== "on") {
+export function createPullRequestPublisher(): PullRequestPublisher | null {
+  if (!pullRequestCreationEnabled()) {
     return null;
   }
 
@@ -57,6 +71,6 @@ export function createRepositoryWorkflow(): RepositoryWorkflow {
     mode: selectedMode,
     remote: process.env.WEB_APP_DEV_TEAM_GIT_REMOTE ?? "origin",
     baseBranch: process.env.WEB_APP_DEV_TEAM_GIT_BASE_BRANCH ?? "main",
-    pullRequestPublisher: pullRequestPublisher(),
+    pullRequestPublisher: createPullRequestPublisher(),
   });
 }
