@@ -23,6 +23,8 @@ describe("web application template", () => {
     expect(files[".github/workflows/ci.yml"]).toContain("actions/checkout@v6");
     expect(files[".github/workflows/ci.yml"]).toContain("actions/cache@v5");
     expect(files[".github/workflows/ci.yml"]).toContain("bun run test:coverage");
+    expect(files[".github/workflows/ci.yml"]?.endsWith("\n")).toBeTrue();
+    expect(files[".github/workflows/ci.yml"]?.endsWith("\n\n")).toBeFalse();
     expect(files["bunfig.toml"]).toContain(
       "coverageThreshold = { lines = 0.8, functions = 0.8, statements = 0.8 }",
     );

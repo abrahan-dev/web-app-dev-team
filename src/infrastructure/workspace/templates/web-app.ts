@@ -131,10 +131,12 @@ function frontendFiles(applicationName: string): Record<string, string> {
 }
 
 function continuousIntegrationWorkflow(plan: ChangePlan): string {
-  return renderTemplate("ci/workflow.yml.tmpl", {
+  const content = renderTemplate("ci/workflow.yml.tmpl", {
     bunVersion: stackCatalog.runtime.bun,
     frontendSteps: plan.frontendRequired ? template("ci/frontend-steps.yml.tmpl") : "",
   });
+
+  return `${content.trimEnd()}\n`;
 }
 
 export function webAppTemplate(plan: ChangePlan): Record<string, string> {
