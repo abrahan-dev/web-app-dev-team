@@ -79,7 +79,7 @@ const configurationSettings: ConfigurationSetting[] = [
     },
   },
   {
-    defaultValue: "unlimited",
+    defaultValue: "100",
     description: "One turn is one role execution and handoff. Use unlimited or a positive limit.",
     label: "Maximum turns",
     name: "WEB_APP_DEV_TEAM_MAX_TURNS",

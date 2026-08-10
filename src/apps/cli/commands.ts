@@ -64,7 +64,7 @@ export class CliArguments {
 
   maxTurns(): number {
     return parseMaxTurns(
-      this.optional("--max-turns") ?? process.env.WEB_APP_DEV_TEAM_MAX_TURNS ?? "unlimited",
+      this.optional("--max-turns") ?? process.env.WEB_APP_DEV_TEAM_MAX_TURNS ?? "100",
     );
   }
 }

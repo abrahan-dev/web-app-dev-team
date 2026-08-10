@@ -44,7 +44,7 @@ describe("CLI arguments", () => {
 
   test("keeps max-turn precedence and validation explicit", () => {
     delete process.env.WEB_APP_DEV_TEAM_MAX_TURNS;
-    expect(new CliArguments(["bun", "index.ts", "demo"]).maxTurns()).toBe(0);
+    expect(new CliArguments(["bun", "index.ts", "demo"]).maxTurns()).toBe(100);
 
     process.env.WEB_APP_DEV_TEAM_MAX_TURNS = "20";
 

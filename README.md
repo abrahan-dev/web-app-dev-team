@@ -161,8 +161,9 @@ that can complete the run.
 For a new application, bootstrap formats generated template files before it
 runs the formatter check.
 
-Runs have no turn limit by default. Stop the tmux session to stop a run. Use
-`--max-turns <count>` when you need a fixed safety limit.
+Runs have a 100-turn limit by default. Stop the tmux session to stop a run. Use
+`--max-turns <count>` to select another limit. Use `--max-turns unlimited` to
+remove the limit.
 
 Stop a run with the session name printed by `run`:
 
@@ -170,8 +171,8 @@ Stop a run with the session name printed by `run`:
 tmux kill-session -t web-app-dev-team-123456789
 ```
 
-An existing configuration can still contain a finite limit. Run `configure`
-again and enter `unlimited` for `Maximum turns`.
+The `configure` command stores the selected limit in the user configuration.
+The `--max-turns` option overrides that value for one command.
 
 Run data is stored in:
 
@@ -277,7 +278,7 @@ Common values:
 ```dotenv
 WEB_APP_DEV_TEAM_MODEL=gpt-5.6-luna
 WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=high
-WEB_APP_DEV_TEAM_MAX_TURNS=unlimited
+WEB_APP_DEV_TEAM_MAX_TURNS=100
 WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10
 WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on
 WEB_APP_DEV_TEAM_GIT_WORKFLOW=auto
@@ -294,9 +295,9 @@ The default reasoning effort is `high`. GPT-5.6 supports `none`, `low`,
 latency, and token use. See the
 [official OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model#update-api-and-model-parameters).
 
-One turn is one role execution and handoff. Runs are unlimited by default. Set
-`WEB_APP_DEV_TEAM_MAX_TURNS` to a positive integer to add a fixed safety limit.
-Service, account, and model limits can still stop an unlimited run.
+One turn is one role execution and handoff. The default limit is 100 turns.
+Set `WEB_APP_DEV_TEAM_MAX_TURNS=unlimited` to remove this limit. Service,
+account, and model limits can still stop an unlimited run.
 
 Pull request creation is enabled by default. Set
 `WEB_APP_DEV_TEAM_CREATE_PR=off` to disable it. When it is enabled, startup
@@ -479,8 +480,8 @@ bun run restore:resume -- --restore-dir /absolute/path/to/restitution-run
 bun run restore:status -- --restore-dir /absolute/path/to/restitution-run
 ```
 
-Each restitution specification has no turn limit by default. You can set a
-positive limit. A skipped role does not use a turn.
+Each restitution specification has a 100-turn limit by default. You can select
+another positive limit or `unlimited`. A skipped role does not use a turn.
 
 ### Quality gates
 
