@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { agentRolesRoot, communicationStandardPath } from "../../package-paths.ts";
 import type { AgentContext } from "../../application/ports/agent-runner.ts";
 import { describeStackCatalog } from "../configuration/stack-catalog.ts";
 import type { AgentTurn, Handoff, SpecificationReview } from "../../domain/schemas.ts";
@@ -9,17 +10,12 @@ import { transitionDescription } from "../../domain/workflow.ts";
 import { describeWorkspaceFacts, loadWorkspaceFacts } from "../workspace/workspace-inspector.ts";
 
 export function roleInstructionsPath(role: Role): string {
-  return resolve(import.meta.dir, "../../../assets/agents/roles", `${role}.md`);
+  return resolve(agentRolesRoot, `${role}.md`);
 }
 
 export function loadRoleInstructions(role: Role): Promise<string> {
   return readFile(roleInstructionsPath(role), "utf8");
 }
-
-export const communicationStandardPath = resolve(
-  import.meta.dir,
-  "../../../assets/agents/communication.md",
-);
 
 export function loadCommunicationStandard(): Promise<string> {
   return readFile(communicationStandardPath, "utf8");

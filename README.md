@@ -3,6 +3,31 @@
 Seven Codex roles build internal business applications. The orchestrator uses
 validated and deterministic handoffs.
 
+## Install
+
+The public npm package supports macOS and Linux. Install it globally:
+
+```bash
+npm install --global @hagioscopio/web-app-dev-team
+```
+
+Run the system checks:
+
+```bash
+web-app-dev-team doctor
+```
+
+Start a development run:
+
+```bash
+web-app-dev-team run \
+  --workspace /absolute/path/to/project \
+  --prompt "Add approval rules to purchase orders"
+```
+
+The installation does not require an npm account. Package publication requires
+access to the `hagioscopio` npm account.
+
 ```text
 specifier -> human review -> architect
 architect -> [ui-designer] -> [data-engineer] -> [backend-coder] -> [frontend-coder] -> QA
@@ -92,11 +117,17 @@ compatibility contract.
 
 ## Requirements and run
 
-Install Bun, tmux, and an authenticated `codex` CLI. If tmux is not available,
-the application stops before it changes the target project.
+Install Bun, tmux, Git, and an authenticated `codex` CLI. If tmux is not
+available, the application stops before it changes the target project.
+
+Use `doctor` to check the local system:
 
 ```bash
-bun run start -- \
+web-app-dev-team doctor --workspace /absolute/path/to/project
+```
+
+```bash
+web-app-dev-team run \
   --workspace /absolute/path/to/project \
   --prompt "Add approval rules to purchase orders"
 ```
@@ -117,17 +148,27 @@ Restitution implements the specifications in creation order. It does not use
 the specifier or human review. It records a checkpoint only after QA completes.
 
 ```bash
-bun run restore -- \
+web-app-dev-team restore \
   --workspace /absolute/path/to/fresh-project \
   --specs-path /absolute/path/to/specifications
 
-bun run restore:resume -- --restore-dir /absolute/path/to/restitution-run
-bun run restore:status -- --restore-dir /absolute/path/to/restitution-run
+web-app-dev-team restore:resume --restore-dir /absolute/path/to/restitution-run
+web-app-dev-team status --restore-dir /absolute/path/to/restitution-run
 ```
 
 Use `--max-turns 24` with `restore:resume` to increase an exhausted turn limit.
 
 ## Configuration
+
+The command uses this configuration order:
+
+1. Command options.
+2. Environment variables.
+3. `<workspace>/.web-app-dev-team/config.env`.
+4. `~/.config/web-app-dev-team/config.env`.
+5. Default values.
+
+Do not commit secrets from a configuration file.
 
 ```dotenv
 WEB_APP_DEV_TEAM_MODEL=gpt-5.6-sol
@@ -210,8 +251,57 @@ If branch creation or final delivery fails, the run state records the step and
 error. Correct the external problem, and retry the step:
 
 ```bash
-bun run git:resume -- --run-dir /absolute/path/to/run
+web-app-dev-team git-resume --run-dir /absolute/path/to/run
 ```
+
+## Update and remove
+
+Install the current stable version:
+
+```bash
+npm install --global @hagioscopio/web-app-dev-team@latest
+```
+
+Install the current test version:
+
+```bash
+npm install --global @hagioscopio/web-app-dev-team@next
+```
+
+Remove the application:
+
+```bash
+npm uninstall --global @hagioscopio/web-app-dev-team
+```
+
+## Package release
+
+The npm package contains compiled Bun entry points and the required assets. It
+does not contain the TypeScript source or tests.
+
+Pull requests and changes to `main` run the CI workflow. A published GitHub
+Release runs the npm publication workflow.
+
+The Git tag, GitHub Release, and `package.json` version must match. A prerelease
+uses the npm `next` tag. A stable release uses the npm `latest` tag.
+
+Publish the first test version from an authenticated local terminal:
+
+```bash
+bun run check
+bun run build
+npm run package:create
+npm publish ./hagioscopio-web-app-dev-team-0.1.0-beta.1.tgz \
+  --access public \
+  --tag next
+```
+
+After the first publication, configure npm Trusted Publishing for GitHub
+Actions. Use the GitHub owner, repository, and `publish-npm.yml` workflow name.
+Permit `npm publish`. The workflow requires the `npm` GitHub environment.
+
+Publish later versions through a GitHub Release. Do not publish them from a
+local terminal.
 
 ## Pull request creation
 

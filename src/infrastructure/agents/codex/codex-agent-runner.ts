@@ -18,6 +18,7 @@ import {
 } from "../../../application/ports/agent-runner.ts";
 import { buildAgentPrompt } from "../prompt-builder.ts";
 import { consumeCodexJsonl } from "./codex-jsonl.ts";
+import { agentSchemasRoot } from "../../../package-paths.ts";
 
 interface CodexProcess {
   stdin: {
@@ -71,11 +72,7 @@ export class CodexAgentRunner implements AgentRunner {
     const { role, state, runDirectory } = context;
     const logPath = resolve(runDirectory, "logs", `${role}.log`);
     const outputPath = resolve(runDirectory, `${state.turns}-${role}-output.json`);
-    const schemaPath = resolve(
-      import.meta.dir,
-      "../../../../assets/agents/output-schemas",
-      `${role}-output.schema.json`,
-    );
+    const schemaPath = resolve(agentSchemasRoot, `${role}-output.schema.json`);
     const model = process.env.WEB_APP_DEV_TEAM_MODEL;
     const args = [
       "exec",

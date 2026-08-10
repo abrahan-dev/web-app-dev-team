@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { z } from "zod";
+import { stackCatalogPath } from "../../package-paths.ts";
 
 const stackCatalogSchema = z.object({
   runtime: z.object({
@@ -38,7 +38,7 @@ const stackCatalogSchema = z.object({
 
 export type StackCatalog = z.infer<typeof stackCatalogSchema>;
 
-export const stackCatalogPath = resolve(import.meta.dir, "../../../assets/workspace/stack.json");
+export { stackCatalogPath };
 
 export function loadStackCatalog(): StackCatalog {
   return stackCatalogSchema.parse(JSON.parse(readFileSync(stackCatalogPath, "utf8")));

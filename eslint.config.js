@@ -4,6 +4,9 @@ import eslintConfigPrettier from "eslint-config-prettier";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
+  {
+    ignores: ["dist/**"],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   eslintConfigPrettier,
@@ -32,6 +35,21 @@ export default tseslint.config(
           next: "return",
         },
       ],
+    },
+  },
+  {
+    files: ["bin/*.cjs"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        __dirname: "readonly",
+        console: "readonly",
+        process: "readonly",
+        require: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
 );

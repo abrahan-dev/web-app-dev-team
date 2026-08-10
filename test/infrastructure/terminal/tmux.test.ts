@@ -39,4 +39,6 @@ test("builds one tiled seven-pane agents window and a hidden orchestrator", asyn
   expect(combined).toContain(Role.FrontendCoder);
   expect(combined).toContain(Role.Qa);
   expect(combined).toContain("'/tmp/run with spaces'");
+  expect(combined).toContain("dist/cli.js");
+  expect(combined).toContain("dist/watch-role.js");
 });

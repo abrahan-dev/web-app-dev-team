@@ -1,36 +1,79 @@
 {
-  "name": "web-app-dev-team",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@hagioscopio/web-app-dev-team",
+  "version": "0.1.0-beta.1",
+  "description": "A deterministic Codex team for building internal web applications.",
+  "private": false,
   "type": "module",
+  "license": "MIT",
+  "author": "hagioscopio",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abrahan-dev/web-app-dev-team.git"
+  },
+  "homepage": "https://github.com/abrahan-dev/web-app-dev-team#readme",
+  "bugs": {
+    "url": "https://github.com/abrahan-dev/web-app-dev-team/issues"
+  },
+  "keywords": [
+    "codex",
+    "development-team",
+    "web-application",
+    "automation"
+  ],
+  "bin": {
+    "web-app-dev-team": "./bin/web-app-dev-team.cjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "assets",
+    "README.md",
+    "LICENSE"
+  ],
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
-    "start": "bun run --env-file=.env src/index.ts tmux",
-    "tmux": "bun run --env-file=.env src/index.ts tmux",
-    "restore": "bun run --env-file=.env src/index.ts restore",
-    "restore:resume": "bun run --env-file=.env src/index.ts restore:resume",
-    "restore:status": "bun run --env-file=.env src/index.ts restore-status",
-    "git:resume": "bun run --env-file=.env src/index.ts git:resume",
-    "demo": "bun run src/index.ts demo",
+    "build:clean": "bun run scripts/clean-dist.ts",
+    "build:cli": "bun build src/index.ts --target=bun --format=esm --packages=external --outdir=dist --entry-naming=cli.[ext] --sourcemap=external",
+    "build:watcher": "bun build src/infrastructure/terminal/watch-role.ts --target=bun --format=esm --packages=external --outdir=dist --entry-naming=watch-role.[ext] --sourcemap=external",
+    "build": "bun run build:clean && bun run build:cli && bun run build:watcher",
+    "start": "bun run build && bun run --env-file=.env dist/cli.js run",
+    "tmux": "bun run build && bun run --env-file=.env dist/cli.js run",
+    "restore": "bun run build && bun run --env-file=.env dist/cli.js restore",
+    "restore:resume": "bun run build && bun run --env-file=.env dist/cli.js restore:resume",
+    "restore:status": "bun run build && bun run --env-file=.env dist/cli.js status",
+    "git:resume": "bun run build && bun run --env-file=.env dist/cli.js git-resume",
+    "demo": "bun run build && bun run dist/cli.js demo",
     "format": "eslint . --fix && prettier --write .",
     "format:check": "prettier --check . && eslint .",
     "complexity": "eslint src --rule 'complexity: [\"error\", 10]'",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "check": "bun run format:check && bun run typecheck && bun run complexity && bun run test"
+    "check": "bun run format:check && bun run typecheck && bun run complexity && bun run test",
+    "package:inspect": "npm pack --dry-run --cache .web-app-dev-team/npm-cache",
+    "package:create": "npm pack --json --cache .web-app-dev-team/npm-cache",
+    "package:test": "bun test test/package",
+    "prepublishOnly": "bun run check && bun run build && bun run package:test && bun run package:inspect"
   },
   "dependencies": {
     "@modelcontextprotocol/client": "^2.0.0",
+    "eslint": "^10.8.0",
+    "typescript-eslint": "^8.65.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/bun": "latest",
-    "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.6",
-    "typescript": "5.9.3",
-    "typescript-eslint": "^8.65.0"
+    "typescript": "5.9.3"
   }
 }

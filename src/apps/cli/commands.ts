@@ -1,4 +1,5 @@
 import { basename, dirname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import { CodexAgentRunner } from "../../infrastructure/agents/codex/codex-agent-runner.ts";
 import { ScriptedAgentRunner } from "../../infrastructure/agents/scripted/scripted-agent-runner.ts";
 import type { TokenTotals } from "../../domain/schemas.ts";
@@ -24,6 +25,9 @@ import {
   launchTmux,
 } from "../../infrastructure/terminal/tmux.ts";
 import { TerminalSpecificationReviewer } from "./terminal-specification-reviewer.ts";
+import { cliEntryPath, packageJsonPath } from "../../package-paths.ts";
+import { inspectSystem, renderDoctorChecks } from "./system-doctor.ts";
+import { loadConfiguration } from "./configuration-loader.ts";
 
 export type CommandHandler = (arguments_: CliArguments) => Promise<void>;
 export type CommandHandlers = Record<string, CommandHandler>;
@@ -32,7 +36,7 @@ export class CliArguments {
   constructor(private readonly values: string[]) {}
 
   get command(): string {
-    return this.values[2] ?? "tmux";
+    return this.values[2] ?? "run";
   }
 
   has(name: string): boolean {
@@ -60,6 +64,35 @@ export class CliArguments {
       this.optional("--max-turns") ?? process.env.WEB_APP_DEV_TEAM_MAX_TURNS ?? "12",
     );
   }
+}
+
+export const helpText = `web-app-dev-team builds web applications with specialized Codex roles.
+
+Usage:
+  web-app-dev-team run --workspace <path> --prompt <task> [--detach]
+  web-app-dev-team doctor [--workspace <path>]
+  web-app-dev-team restore --workspace <path> --specs-path <path>
+  web-app-dev-team restore:resume --restore-dir <path> [--max-turns <count>]
+  web-app-dev-team status --restore-dir <path>
+  web-app-dev-team attach --session <name>
+  web-app-dev-team git-resume --run-dir <path>
+  web-app-dev-team --help
+  web-app-dev-team --version
+
+Requirements:
+  Bun, tmux, Git, and an authenticated Codex CLI.
+
+Run data:
+  <workspace>/.web-app-dev-team/runs/<run-id>/`;
+
+export async function packageVersion(): Promise<string> {
+  const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as { version?: unknown };
+
+  if (typeof packageJson.version !== "string") {
+    throw new Error("package.json has no valid version.");
+  }
+
+  return packageJson.version;
 }
 
 export function parseMaxTurns(raw: string): number {
@@ -223,7 +256,6 @@ async function launchRestitution(arguments_: CliArguments, resuming: boolean): P
     directory = created.directory;
   }
 
-  const cli = resolve(import.meta.dir, "../index.ts");
   const maxTurnsOverride = arguments_.optional("--max-turns");
   const session = await launchTmux({
     runner: new BunCommandRunner(),
@@ -234,7 +266,7 @@ async function launchRestitution(arguments_: CliArguments, resuming: boolean): P
       const controller = [
         "bun",
         "run",
-        cli,
+        cliEntryPath,
         "restore-resume",
         "--restore-dir",
         directory,
@@ -258,6 +290,34 @@ async function resume(arguments_: CliArguments): Promise<void> {
     false,
     arguments_.optional("--tmux-session"),
   );
+}
+
+async function doctor(arguments_: CliArguments): Promise<void> {
+  const checks = await inspectSystem(arguments_.optional("--workspace") ?? process.cwd());
+
+  console.log(renderDoctorChecks(checks));
+
+  if (checks.some(({ status }) => status === "FAIL")) {
+    process.exitCode = 1;
+  }
+}
+
+async function attach(arguments_: CliArguments): Promise<void> {
+  assertTmuxInstalled();
+  await new BunCommandRunner().run([
+    "tmux",
+    "attach-session",
+    "-t",
+    arguments_.required("--session"),
+  ]);
+}
+
+async function printVersion(): Promise<void> {
+  console.log(await packageVersion());
+}
+
+async function printHelp(): Promise<void> {
+  console.log(helpText);
 }
 
 async function startDevelopment(arguments_: CliArguments, demo: boolean): Promise<void> {
@@ -304,6 +364,14 @@ async function startDevelopment(arguments_: CliArguments, demo: boolean): Promis
 }
 
 const commandHandlers: CommandHandlers = {
+  "--help": printHelp,
+  "--version": printVersion,
+  attach,
+  doctor,
+  help: printHelp,
+  run: (arguments_) => startDevelopment(arguments_, false),
+  status: restoreStatus,
+  "git-resume": resume,
   "restore-status": restoreStatus,
   "restore-resume": restoreResume,
   restore: (arguments_) => launchRestitution(arguments_, false),
@@ -319,11 +387,14 @@ export async function runCli(
   handlers: CommandHandlers = commandHandlers,
 ): Promise<void> {
   const arguments_ = new CliArguments(values);
+  await loadConfiguration({
+    workspace: resolve(arguments_.optional("--workspace") ?? process.cwd()),
+  });
   const handler = handlers[arguments_.command];
 
   if (!handler) {
     throw new Error(
-      `Unknown command ${arguments_.command}. Use tmux, restore, restore:resume, restore-status, demo, or resume.`,
+      `Unknown command ${arguments_.command}. Use --help to list the available commands.`,
     );
   }
 

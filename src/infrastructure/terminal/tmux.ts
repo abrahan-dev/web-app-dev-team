@@ -1,5 +1,5 @@
-import { resolve } from "node:path";
 import { roles } from "../../domain/schemas.ts";
+import { cliEntryPath, roleWatcherPath } from "../../package-paths.ts";
 
 export function assertTmuxInstalled(tmuxPath: string | null = Bun.which("tmux")): void {
   if (tmuxPath === null) {
@@ -29,9 +29,7 @@ function shellQuote(value: string): string {
 }
 
 function watcherCommand(runDirectory: string, role: string): string {
-  const script = resolve(import.meta.dir, "watch-role.ts");
-
-  return ["bun", "run", script, runDirectory, role].map(shellQuote).join(" ");
+  return ["bun", "run", roleWatcherPath, runDirectory, role].map(shellQuote).join(" ");
 }
 
 export async function launchTmux(options: {
@@ -70,11 +68,10 @@ export async function launchTmux(options: {
     await options.runner.run(["tmux", "select-layout", "-t", `${session}:agents`, "tiled"]);
   }
 
-  const cli = resolve(import.meta.dir, "../index.ts");
   const controllerCommand = options.controllerCommand?.(session) ?? [
     "bun",
     "run",
-    cli,
+    cliEntryPath,
     "resume",
     "--run-dir",
     options.runDirectory,

@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { workspaceTemplatesRoot } from "../../../package-paths.ts";
 import { stackCatalog } from "../../configuration/stack-catalog.ts";
 import type { ChangePlan } from "../../../domain/schemas.ts";
 
 export const webAppTemplateVersion = 1 as const;
-const templateRoot = resolve(import.meta.dir, "../../../../assets/workspace/templates");
+const templateRoot = workspaceTemplatesRoot;
 
 function template(path: string): string {
   return readFileSync(resolve(templateRoot, path), "utf8");

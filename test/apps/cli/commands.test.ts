@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   CliArguments,
+  helpText,
+  packageVersion,
   parseMaxTurns,
   runCli,
   specificationsDirectory,
@@ -8,6 +10,7 @@ import {
   type CommandHandlers,
 } from "../../../src/apps/cli/commands.ts";
 import { emptyTokenTotals } from "../../../src/domain/token-usage.ts";
+import { expectedPackageVersion } from "../../support/package-metadata.ts";
 
 const originalMaxTurns = process.env.WEB_APP_DEV_TEAM_MAX_TURNS;
 
@@ -52,6 +55,13 @@ describe("CLI arguments", () => {
   test("dispatches every public command", async () => {
     const calls: string[] = [];
     const names = [
+      "--help",
+      "--version",
+      "attach",
+      "doctor",
+      "run",
+      "status",
+      "git-resume",
       "restore-status",
       "restore-resume",
       "restore",
@@ -80,21 +90,27 @@ describe("CLI arguments", () => {
     );
   });
 
-  test("uses tmux by default and formats paths and token totals", async () => {
+  test("uses run by default and formats paths and token totals", async () => {
     let command = "";
     await runCli(["bun", "index.ts"], {
-      tmux: async (arguments_) => {
+      run: async (arguments_) => {
         command = arguments_.command;
       },
     });
     const totals = emptyTokenTotals();
     totals.team.totalTokens = 12_345;
 
-    expect(command).toBe("tmux");
+    expect(command).toBe("run");
     expect(specificationsDirectory("/tmp/specifications/manifest.json")).toBe(
       "/tmp/specifications",
     );
     expect(specificationsDirectory("/tmp/specifications")).toBe("/tmp/specifications");
     expect(tokenSummary(totals)).toContain("team 12,345");
+  });
+
+  test("provides package help and version", async () => {
+    expect(helpText).toContain("web-app-dev-team run");
+    expect(helpText).toContain("web-app-dev-team doctor");
+    expect(await packageVersion()).toBe(expectedPackageVersion);
   });
 });
