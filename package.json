@@ -1,6 +1,6 @@
 {
   "name": "@hagioscopio/web-app-dev-team",
-  "version": "0.1.0-beta.3",
+  "version": "0.1.0-beta.4",
   "description": "A deterministic Codex team for building internal web applications.",
   "private": false,
   "type": "module",
