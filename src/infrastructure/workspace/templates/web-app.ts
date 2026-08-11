@@ -52,7 +52,7 @@ function packageJson(plan: ChangePlan): string {
   if (plan.dataRequired) {
     dependencies["drizzle-orm"] = catalogDependencies["drizzle-orm"];
     developmentDependencies["drizzle-kit"] = catalogDevelopmentDependencies["drizzle-kit"];
-    scripts["db:generate"] = "drizzle-kit generate";
+    scripts["db:generate"] = 'drizzle-kit generate && prettier --write "drizzle/meta/**/*.json"';
     scripts["db:migrate"] = "drizzle-kit migrate";
   }
 
@@ -174,8 +174,14 @@ export function webAppTemplate(plan: ChangePlan): Record<string, string> {
       applicationName: plan.applicationName,
     });
 
-    for (const context of plan.contexts) {
-      files[`src/contexts/${context}/infrastructure/persistence/.gitkeep`] = "";
+    for (const context of plan.persistenceContexts) {
+      const root = `src/contexts/${context}/infrastructure/persistence`;
+      files[`${root}/database.ts`] = renderTemplate("data/database.ts.tmpl", {
+        applicationName: plan.applicationName,
+      });
+      files[`${root}/index.ts`] = template("data/index.ts.tmpl");
+      files[`test/contexts/${context}/infrastructure/persistence/database.test.ts`] =
+        renderTemplate("data/database.test.ts.tmpl", { context });
     }
   }
 

@@ -1,0 +1,12 @@
+import { expect, test } from "bun:test";
+import { openApplicationDatabase } from "../../../../../src/contexts/{{context}}/infrastructure/persistence/database.ts";
+
+test("opens the application database with foreign keys enabled", () => {
+  const { client, database } = openApplicationDatabase(":memory:");
+
+  expect(database).toBeDefined();
+  expect(client.query("PRAGMA foreign_keys").get()).toEqual({
+    foreign_keys: 1,
+  });
+  client.close();
+});

@@ -18,6 +18,7 @@ async function workspace(): Promise<string> {
 const plan: ChangePlan = {
   applicationName: "purchase-orders",
   contexts: ["purchasing", "identity"],
+  persistenceContexts: ["purchasing"],
   dataRequired: true,
   backendRequired: true,
   frontendRequired: true,
@@ -67,6 +68,12 @@ describe("deterministic workspace bootstrapper", () => {
       "bun run test:e2e",
     ]);
     expect(result.createdFiles).toContain("src/contexts/purchasing/domain/.gitkeep");
+    expect(result.createdFiles).toContain(
+      "src/contexts/purchasing/infrastructure/persistence/database.ts",
+    );
+    expect(result.createdFiles).not.toContain(
+      "src/contexts/identity/infrastructure/persistence/database.ts",
+    );
     expect(result.createdFiles).toContain(".github/workflows/ci.yml");
     expect(result.createdFiles).toContain("bunfig.toml");
     expect(result.createdFiles).toContain("src/apps/purchase-orders/backend/server.ts");
@@ -151,6 +158,7 @@ describe("deterministic workspace bootstrapper", () => {
     const root = await workspace();
     const result = await bootstrapper().bootstrap(root, {
       ...plan,
+      persistenceContexts: [],
       dataRequired: false,
       frontendRequired: false,
     });

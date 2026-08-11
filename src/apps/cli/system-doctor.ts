@@ -5,7 +5,7 @@ import {
   createPullRequestPublisher,
   pullRequestCreationEnabled,
 } from "../../infrastructure/git/config.ts";
-import { checkCodexModel } from "./codex-model-check.ts";
+import { checkConfiguredCodexModels } from "./codex-model-check.ts";
 
 export type DoctorStatus = "PASS" | "WARNING" | "FAIL";
 
@@ -116,12 +116,13 @@ export async function inspectSystem(workspaceValue?: string): Promise<DoctorChec
   }
 
   if (Bun.which("codex")) {
-    const model = checkCodexModel();
-    checks.push({
-      status: model.compatible ? "PASS" : "FAIL",
-      name: "Codex model",
-      detail: model.detail,
-    });
+    checks.push(
+      ...checkConfiguredCodexModels().map(({ compatible, detail, name }) => ({
+        status: compatible ? ("PASS" as const) : ("FAIL" as const),
+        name,
+        detail,
+      })),
+    );
     checks.push(codexAuthenticationCheck());
   }
 

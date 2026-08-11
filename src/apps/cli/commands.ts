@@ -1,8 +1,8 @@
 import { basename, dirname, resolve } from "node:path";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { CodexAgentRunner } from "../../infrastructure/agents/codex/codex-agent-runner.ts";
 import { ScriptedAgentRunner } from "../../infrastructure/agents/scripted/scripted-agent-runner.ts";
-import type { TokenTotals } from "../../domain/schemas.ts";
+import { roleSchema, type LocalCheck, type TokenTotals } from "../../domain/schemas.ts";
 import { createRepositoryWorkflow } from "../../infrastructure/git/config.ts";
 import { runDevelopmentTeam } from "../../application/development/run-development-team.ts";
 import { developmentServices } from "../../infrastructure/development-services.ts";
@@ -31,9 +31,16 @@ import { loadConfiguration } from "./configuration-loader.ts";
 import { configureUser } from "./user-configurator.ts";
 import { assertCodexModelSupported } from "./codex-model-check.ts";
 import { parseTurnLimit } from "../../domain/turn-limit.ts";
+import { isCodeWritingRole } from "../../application/development/turn-routing.ts";
+import { roleOwnedSourceFiles, runQualityGate } from "../../infrastructure/quality/quality-gate.ts";
+import { loadWorkspaceFacts } from "../../infrastructure/workspace/workspace-inspector.ts";
 
 export type CommandHandler = (arguments_: CliArguments) => Promise<void>;
 export type CommandHandlers = Record<string, CommandHandler>;
+
+export async function ensureWorkspaceDirectory(workspace: string): Promise<void> {
+  await mkdir(workspace, { recursive: true });
+}
 
 export class CliArguments {
   constructor(private readonly values: string[]) {}
@@ -344,6 +351,43 @@ async function printHelp(): Promise<void> {
   console.log(helpText);
 }
 
+function renderRoleCheck(check: LocalCheck): string {
+  return [
+    `${check.passed ? "PASS" : "FAIL"} ${check.summary}`,
+    ...check.commands.map(
+      ({ command, exitCode }) => `${exitCode === 0 ? "PASS" : "FAIL"} ${command}`,
+    ),
+    ...check.details.map((detail) => `- ${detail}`),
+  ].join("\n");
+}
+
+async function roleCheck(arguments_: CliArguments): Promise<void> {
+  const workspace = resolve(arguments_.required("--workspace"));
+  const runDirectory = resolve(arguments_.required("--run-dir"));
+  const role = roleSchema.parse(arguments_.required("--role"));
+
+  if (!isCodeWritingRole(role)) {
+    throw new Error("role-check requires data-engineer, backend-coder, or frontend-coder.");
+  }
+
+  const check = await runQualityGate({
+    workspace,
+    facts: await loadWorkspaceFacts(workspace, runDirectory),
+    changedFiles: await roleOwnedSourceFiles(workspace, role),
+    turn: 0,
+    sequence: 0,
+    role,
+    runScripts: false,
+    runBrowserTests: false,
+    runCoverage: true,
+  });
+  console.log(renderRoleCheck(check));
+
+  if (!check.passed) {
+    process.exitCode = 1;
+  }
+}
+
 async function startDevelopment(arguments_: CliArguments, demo: boolean): Promise<void> {
   const workspace = resolve(
     demo
@@ -362,6 +406,7 @@ async function startDevelopment(arguments_: CliArguments, demo: boolean): Promis
     assertCodexModelSupported();
   }
 
+  await ensureWorkspaceDirectory(workspace);
   const repositoryWorkflow = createRepositoryWorkflow();
   const gitWorkflow = demo ? null : await repositoryWorkflow.prepare(workspace);
   const created = await createRunState({
@@ -408,6 +453,7 @@ const commandHandlers: CommandHandlers = {
   "restore:resume": (arguments_) => launchRestitution(arguments_, true),
   "git:resume": resume,
   resume,
+  "role-check": roleCheck,
   tmux: (arguments_) => startDevelopment(arguments_, false),
   demo: (arguments_) => startDevelopment(arguments_, true),
 };

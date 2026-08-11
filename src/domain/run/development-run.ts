@@ -13,6 +13,7 @@ import {
 import { RunStatus, TurnDecision } from "../workflow-values.ts";
 import { recordTokenUsage } from "../token-usage.ts";
 import { extendedTurnLimit, unlimitedTurns } from "../turn-limit.ts";
+import { nextImplementationRole } from "../workflow.ts";
 
 interface ExecutionObservations {
   commands: RunState["executions"][number]["commands"];
@@ -224,6 +225,7 @@ export class DevelopmentRun {
       createdAt: new Date().toISOString(),
       turn,
     };
+    this.updateArchitectureReview(from, turn);
     this.value.messages.push(message);
 
     if (completing) {
@@ -285,6 +287,57 @@ export class DevelopmentRun {
       reason,
       logPath: `logs/${role}.log`,
     });
+  }
+
+  private updateArchitectureReview(from: Role, turn: AgentTurn): void {
+    if (turn.decision === TurnDecision.Complete || turn.nextRole === null) {
+      return;
+    }
+
+    if (from === DevelopmentRole.Qa) {
+      this.value.architectureReviewStatus =
+        turn.nextRole === DevelopmentRole.Architect ? "pending" : "changes-requested";
+
+      return;
+    }
+
+    if (from === DevelopmentRole.Architect && this.value.architectureReviewStatus === "pending") {
+      this.value.architectureReviewStatus =
+        turn.nextRole === DevelopmentRole.Qa ? "approved" : "changes-requested";
+
+      return;
+    }
+
+    if (this.startsArchitectureReview(from, turn.nextRole)) {
+      this.value.architectureReviewStatus = "pending";
+    }
+  }
+
+  private startsArchitectureReview(from: Role, nextRole: Role): boolean {
+    const implementationRole = [
+      DevelopmentRole.DataEngineer,
+      DevelopmentRole.BackendCoder,
+      DevelopmentRole.FrontendCoder,
+    ].includes(from);
+
+    if (!implementationRole || nextRole !== DevelopmentRole.Architect) {
+      return false;
+    }
+
+    return (
+      this.value.architectureReviewStatus !== "not-started" || this.isFinalImplementationRole(from)
+    );
+  }
+
+  private isFinalImplementationRole(role: Role): boolean {
+    const plan = this.value.messages.findLast(
+      (message) => message.turn?.role === DevelopmentRole.Architect,
+    )?.turn;
+
+    return (
+      plan?.role === DevelopmentRole.Architect &&
+      nextImplementationRole(role, plan.changePlan) === DevelopmentRole.Architect
+    );
   }
 
   private assertSequences(values: Array<{ sequence: number }>, first: number, label: string): void {

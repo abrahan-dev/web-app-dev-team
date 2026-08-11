@@ -56,26 +56,45 @@ function validatePositiveInteger(name: string, value: string): void {
   }
 }
 
+function validateModel(name: string, value: string): void {
+  if (!/^[A-Za-z0-9._-]+$/u.test(value)) {
+    throw new Error(`${name} has invalid characters.`);
+  }
+}
+
 const configurationSettings: ConfigurationSetting[] = [
   {
     defaultValue: "gpt-5.6-luna",
-    description: "The model runs each specialized Codex role.",
-    label: "Codex model",
+    description: "The execution model runs UI, data, backend, frontend, and QA roles.",
+    label: "Execution Codex model",
     name: "WEB_APP_DEV_TEAM_MODEL",
-    validate: (value) => {
-      if (!/^[A-Za-z0-9._-]+$/u.test(value)) {
-        throw new Error("WEB_APP_DEV_TEAM_MODEL has invalid characters.");
-      }
-    },
+    validate: (value) => validateModel("WEB_APP_DEV_TEAM_MODEL", value),
   },
   {
     defaultValue: "high",
     description:
-      "The reasoning effort controls model analysis. Use none, low, medium, high, xhigh, or max.",
-    label: "Model reasoning effort",
+      "The execution effort controls model analysis. Use none, low, medium, high, xhigh, or max.",
+    label: "Execution reasoning effort",
     name: "WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT",
     validate: (value) => {
       parseModelReasoningEffort(value);
+    },
+  },
+  {
+    defaultValue: "gpt-5.6-sol",
+    description: "The planner model runs the specifier and architect roles.",
+    label: "Planner Codex model",
+    name: "WEB_APP_DEV_TEAM_PLANNER_MODEL",
+    validate: (value) => validateModel("WEB_APP_DEV_TEAM_PLANNER_MODEL", value),
+  },
+  {
+    defaultValue: "xhigh",
+    description:
+      "The planner effort controls model analysis. Use none, low, medium, high, xhigh, or max.",
+    label: "Planner reasoning effort",
+    name: "WEB_APP_DEV_TEAM_PLANNER_MODEL_REASONING_EFFORT",
+    validate: (value) => {
+      parseModelReasoningEffort(value, "WEB_APP_DEV_TEAM_PLANNER_MODEL_REASONING_EFFORT");
     },
   },
   {

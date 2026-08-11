@@ -35,9 +35,9 @@ web-app-dev-team configure
 The command explains the required GitHub token permission. It tells you that
 the token input stays hidden. It repeats a question after invalid input. It
 creates the configuration directory with mode `700`. It creates `config.env`
-with mode `600`. It also requests the model, reasoning effort, optional turn limit,
-complexity limit, and architecture guard setting. Press Enter to use each
-default value.
+with mode `600`. It also requests the execution and planner profiles. It
+requests the optional turn limit, complexity limit, and architecture guard
+setting. Press Enter to use each default value.
 
 The command also checks the GitHub MCP server. If it is missing, the command
 offers to install it. It uses Homebrew on macOS. It installs the official
@@ -78,7 +78,8 @@ web-app-dev-team run \
 ```
 
 The `--workspace` option is required. The command never uses the current
-directory as an implicit workspace.
+directory as an implicit workspace. The command creates the workspace directory
+when it does not exist.
 
 The specifier shows a Gherkin specification before implementation starts.
 Enter `a` to approve it. Enter `c` to request changes.
@@ -88,7 +89,8 @@ border. Animated dots show that background work continues. Other role labels
 keep their role colors.
 
 The eighth pane shows the run summary and important workflow events. Each role
-pane shows only its own agent output and relevant handoffs.
+pane shows only its own agent output and relevant handoffs. The summary table
+shows the active role model and reasoning effort.
 
 The pane border shows live active time for each role. The active pane also shows
 the total run time since the initial prompt. A returning role continues from its
@@ -164,6 +166,10 @@ an existing project directory.
 The command prepares Git, creates the specification, requests human approval,
 and routes the approved work through the required roles. QA is the only role
 that can complete the run.
+
+After implementation, the architect performs one read-only conformance review.
+The architect approves QA or returns concrete findings to one responsible
+coder.
 
 For a new application, bootstrap formats generated template files before it
 runs the formatter check.
@@ -285,6 +291,8 @@ Common values:
 ```dotenv
 WEB_APP_DEV_TEAM_MODEL=gpt-5.6-luna
 WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=high
+WEB_APP_DEV_TEAM_PLANNER_MODEL=gpt-5.6-sol
+WEB_APP_DEV_TEAM_PLANNER_MODEL_REASONING_EFFORT=xhigh
 WEB_APP_DEV_TEAM_MAX_TURNS=100
 WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10
 WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on
@@ -297,9 +305,15 @@ WEB_APP_DEV_TEAM_GITHUB_MCP_ARGS=["stdio","--tools=create_pull_request"]
 GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_...
 ```
 
-The default reasoning effort is `high`. GPT-5.6 supports `none`, `low`,
-`medium`, `high`, `xhigh`, and `max`. Higher values can increase quality,
-latency, and token use. See the
+The execution profile runs the UI, data, backend, frontend, and QA roles.
+Its default model is `gpt-5.6-luna`. Its default reasoning effort is `high`.
+
+The planner profile runs the specifier and architect roles. Its default model
+is `gpt-5.6-sol`. Its default reasoning effort is `xhigh`. If planner values
+are absent, the planner profile uses the execution values.
+
+GPT-5.6 supports `none`, `low`, `medium`, `high`, `xhigh`, and `max`.
+Higher values can increase quality, latency, and token use. See the
 [official OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model#update-api-and-model-parameters).
 
 One turn is one role execution and handoff. The default limit is 100 turns.
@@ -383,7 +397,7 @@ The orchestrator uses validated and deterministic handoffs:
 
 ```text
 specifier -> human review -> architect
-architect -> [ui-designer] -> [data-engineer] -> [backend-coder] -> [frontend-coder] -> QA
+architect -> [ui-designer] -> [data-engineer] -> [backend-coder] -> [frontend-coder] -> architect review -> QA
 ```
 
 Square brackets identify optional roles. The architect sets `dataRequired`,
@@ -422,18 +436,27 @@ flowchart TD
     DR -->|No| BR{"Backend required?"}
     D -->|Continue| DC["Quality gate"]
     DC -->|Failed| D
-    DC -->|Passed| BR
+    DC -->|Passed| DRC{"Review correction?"}
+    DRC -->|Yes| AR
+    DRC -->|No| BR
     BR -->|Yes| BE["Backend coder"]
     BR -->|No| FR2{"Frontend required?"}
     BE -->|Continue| BC["Core quality gate"]
     BC -->|Failed| BE
-    BC -->|Passed| FR2
+    BC -->|Passed| BRC{"Review correction?"}
+    BRC -->|Yes| AR
+    BRC -->|No| FR2
     FR2 -->|Yes| FE["Frontend coder"]
-    FR2 -->|No| Q["QA"]
+    FR2 -->|No| AR["Architecture review"]
     FE -->|Continue| FC["Quality and browser gate"]
     FC -->|Failed| FE
-    FC -->|Passed| Q
+    FC -->|Passed| AR
   end
+
+  AR -->|Approved| Q["QA"]
+  AR -->|Data finding| D
+  AR -->|Backend finding| BE
+  AR -->|Frontend finding| FE
 
   UI -->|Blocker| A
   D -->|Blocker| A
@@ -496,8 +519,11 @@ another positive limit or `unlimited`. A skipped role does not use a turn.
 
 ### Quality gates
 
-Before QA, the checks examine structure and complexity. They also run the
-available format, lint, typecheck, unit, integration, and E2E scripts.
+After each coder handoff, the controller checks role-owned complexity and
+coverage. The coder does not run the same deterministic role check.
+
+During final QA verification, the controller runs the available format, lint,
+typecheck, unit, integration, coverage, and E2E scripts.
 
 For new frontend applications, bootstrap installs the Playwright Chromium
 browser once. This prevents repeated E2E failures caused by a missing browser.
@@ -505,6 +531,15 @@ browser once. This prevents repeated E2E failures caused by a missing browser.
 The controller runs `test:coverage` after QA requests completion. The QA role
 does not run the same full coverage script itself. A failed QA gate returns the
 failure evidence to QA. QA then selects the responsible implementation role.
+
+The first quality-gate retry resumes the current Codex session. After two
+consecutive failures, the next retry starts a fresh session with a compact
+correction prompt. A later correction from QA or the architect also uses a
+compact session. This prevents old command output from increasing a small
+correction context.
+
+The generated `db:generate` script formats Drizzle JSON metadata after migration
+generation. It does not format SQL migration files.
 
 New applications define coverage limits in `bunfig.toml`. The default limits
 are 80 percent for lines, functions, and statements. Browser E2E tests do not

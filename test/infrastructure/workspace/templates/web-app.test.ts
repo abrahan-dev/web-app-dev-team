@@ -6,6 +6,7 @@ import { webAppTemplate } from "../../../../src/infrastructure/workspace/templat
 const fullStackPlan: ChangePlan = {
   applicationName: "purchase-orders",
   contexts: ["purchasing"],
+  persistenceContexts: ["purchasing"],
   dataRequired: true,
   backendRequired: true,
   frontendRequired: true,
@@ -25,7 +26,17 @@ describe("web application template", () => {
     expect(files["test/e2e/purchase-orders-smoke.e2e.ts"]).toContain("All systems ready");
     expect(files["test/e2e/purchase-orders-smoke.spec.ts"]).toBeUndefined();
     expect(files["playwright.config.ts"]).toContain('testMatch: "**/*.e2e.ts"');
+    expect(files["playwright.config.ts"]).toContain('url: "http://127.0.0.1:3000/health"');
+    expect(files["playwright.config.ts"]).toContain('url: "http://127.0.0.1:5173"');
+    expect(files["vite.config.ts"]).toContain('host: "127.0.0.1"');
+    expect(files["vite.config.ts"]).toContain("strictPort: true");
     expect(files["drizzle.config.ts"]).toContain('url: "./.data/purchase-orders.sqlite"');
+    expect(files["src/contexts/purchasing/infrastructure/persistence/database.ts"]).toContain(
+      'path = ".data/purchase-orders.sqlite"',
+    );
+    expect(files["test/contexts/purchasing/infrastructure/persistence/database.test.ts"]).toContain(
+      "opens the application database",
+    );
     expect(files[".github/workflows/ci.yml"]).toContain("bun-version: 1.3.10");
     expect(files[".github/workflows/ci.yml"]).toContain("actions/checkout@v6");
     expect(files[".github/workflows/ci.yml"]).toContain("actions/cache@v5");
@@ -35,8 +46,12 @@ describe("web application template", () => {
     expect(files["bunfig.toml"]).toContain(
       "coverageThreshold = { lines = 0.8, functions = 0.8, statements = 0.8 }",
     );
+    expect(files["bunfig.toml"]).toContain('"src/contexts/*/infrastructure/persistence/schema.ts"');
     expect(JSON.parse(files["package.json"] ?? "{}").scripts["test:coverage"]).toBe(
       "bun test --coverage",
+    );
+    expect(JSON.parse(files["package.json"] ?? "{}").scripts["db:generate"]).toBe(
+      'drizzle-kit generate && prettier --write "drizzle/meta/**/*.json"',
     );
 
     const output = Object.values(files).join("\n");
@@ -48,6 +63,7 @@ describe("web application template", () => {
   test("selects only the templates required by the change plan", () => {
     const files = webAppTemplate({
       ...fullStackPlan,
+      persistenceContexts: [],
       dataRequired: false,
       frontendRequired: false,
     });

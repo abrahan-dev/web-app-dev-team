@@ -8,7 +8,7 @@ import {
 } from "../../domain/schemas.ts";
 import { Role } from "../../domain/roles.ts";
 import { TurnDecision } from "../../domain/workflow-values.ts";
-import { firstImplementationRole, nextImplementationRole } from "../../domain/workflow.ts";
+import { firstImplementationRole, plannedNextRole } from "../../domain/workflow.ts";
 
 const codeWritingRoles = [Role.DataEngineer, Role.BackendCoder, Role.FrontendCoder] as const;
 export type CodeWritingRole = (typeof codeWritingRoles)[number];
@@ -46,7 +46,11 @@ export function latestChangePlan(state: RunState, turn: AgentTurn): ChangePlan |
 }
 
 export function canonicalizeNextRole(state: RunState, turn: AgentTurn): AgentTurn {
-  if (turn.role === Role.Architect && turn.nextRole !== Role.Specifier) {
+  if (
+    turn.role === Role.Architect &&
+    state.architectureReviewStatus !== "pending" &&
+    turn.nextRole !== Role.Specifier
+  ) {
     return agentTurnSchema.parse({
       ...turn,
       nextRole: firstImplementationRole(turn.changePlan),
@@ -64,7 +68,7 @@ export function canonicalizeNextRole(state: RunState, turn: AgentTurn): AgentTur
     return plan
       ? agentTurnSchema.parse({
           ...turn,
-          nextRole: nextImplementationRole(turn.role, plan),
+          nextRole: plannedNextRole(turn.role, plan, state.architectureReviewStatus),
         })
       : turn;
   }

@@ -17,7 +17,13 @@ export interface AgentRunResult {
 }
 
 export interface AgentObservations {
-  commands: Array<{ command: string; exitCode: number | null }>;
+  commands: Array<{
+    command: string;
+    exitCode: number | null;
+    startedAt?: string;
+    durationMs?: number;
+    outputBytes?: number;
+  }>;
   changedFiles: string[];
 }
 

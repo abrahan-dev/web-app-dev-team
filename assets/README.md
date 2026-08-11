@@ -46,6 +46,11 @@ The `base/bunfig.toml.tmpl` file defines the generated coverage limits. The
 controller runs the generated `test:coverage` script after QA requests
 completion.
 
+The data templates provide database opening, migration execution, exports, and
+a focused database test. Keep these templates independent of product rules.
+The bootstrap creates these files only for the architect plan's
+`persistenceContexts` values.
+
 Keep the current placeholders unless you also change the template renderer.
 The application defines each output path and each template selection rule in
 `src`. A new template file has no effect until `src` selects and renders it.
@@ -55,6 +60,8 @@ an existing application.
 
 The bootstrap runs the generated `format` script before its formatter check.
 Keep generated files valid so the formatter can update them automatically.
+The generated `db:generate` script formats Drizzle JSON metadata. It does not
+format generated SQL migrations.
 
 ## Pull request template
 

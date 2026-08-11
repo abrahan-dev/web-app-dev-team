@@ -18,11 +18,26 @@ import {
   roleElapsedMilliseconds,
   runElapsedMilliseconds,
 } from "../../domain/run-timing.ts";
+import { codexModelProfile } from "../agents/codex/codex-agent-runner.ts";
 
 const rule = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
 
 function count(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+function commandMetrics(check: LocalCheck): string {
+  const measured = check.commands.filter(({ durationMs }) => durationMs !== undefined);
+
+  if (measured.length === 0) {
+    return "";
+  }
+
+  const duration = measured.reduce((total, command) => total + (command.durationMs ?? 0), 0);
+  const outputBytes = measured.reduce((total, command) => total + (command.outputBytes ?? 0), 0);
+  const durationLabel = duration < 1_000 ? `${duration}ms` : `${(duration / 1_000).toFixed(1)}s`;
+
+  return `\n  Commands: ${measured.length} · time ${durationLabel} · output ${count(outputBytes)} bytes`;
 }
 
 function label(role: Role | null): string {
@@ -56,11 +71,15 @@ function deliverable(turn: AgentTurn): string {
         `  Application: ${turn.changePlan.applicationName}`,
         `  Surfaces: data=${turn.changePlan.dataRequired} · backend=${turn.changePlan.backendRequired} · frontend=${turn.changePlan.frontendRequired}`,
         lines("Contexts", turn.changePlan.contexts),
+        lines("Persistence contexts", turn.changePlan.persistenceContexts),
         lines("Domain model", turn.domainModel),
         lines("API contract", turn.apiContract),
         lines("Security", turn.security),
         lines("Constraints", turn.constraints),
         lines("Risks", turn.risks),
+        `  Architecture review: ${turn.reviewStatus}`,
+        lines("Review findings", turn.reviewFindings),
+        `  Review failure owner: ${turn.failureOwner ?? "none"}`,
       ].join("\n");
     case Role.UiDesigner:
       return [
@@ -107,21 +126,52 @@ async function appendSummary(runDirectory: string, message: string): Promise<voi
   await appendFile(resolve(runDirectory, "logs", "summary.log"), `${message}\n`);
 }
 
+interface RoleSummary {
+  cachedInputTokens: number;
+  effort: string;
+  model: string;
+  name: string;
+  time: string;
+  totalTokens: number;
+}
+
+function roleSummary(state: RunState, role: Role | null): RoleSummary {
+  if (role === null) {
+    return {
+      cachedInputTokens: 0,
+      effort: "default",
+      model: "Codex default",
+      name: label(role),
+      time: "0m 00s",
+      totalTokens: 0,
+    };
+  }
+
+  const usage = state.tokenTotals.byRole[role];
+  const profile = codexModelProfile(role);
+
+  return {
+    cachedInputTokens: usage.cachedInputTokens,
+    effort: profile.reasoningEffort,
+    model: profile.model ?? "Codex default",
+    name: label(role),
+    time: formatElapsed(roleElapsedMilliseconds(state, role)),
+    totalTokens: usage.totalTokens,
+  };
+}
+
 function summaryTable(state: RunState, activeRole: Role | null, turn = state.turns): string {
-  const usage = activeRole ? state.tokenTotals.byRole[activeRole] : null;
-  const roleName = label(activeRole);
-  const roleTime = activeRole
-    ? formatElapsed(roleElapsedMilliseconds(state, activeRole))
-    : "0m 00s";
+  const role = roleSummary(state, activeRole);
 
   return [
     "┌──────────────┬──────────────────────┬──────────────────────┐",
     `│ TURN         │ ${(turn + "/" + turnLimitLabel(state.maxTurns)).padEnd(20)} │ ${state.status.toUpperCase().padEnd(20)} │`,
     "├──────────────┼──────────────────────┼──────────────────────┤",
-    `│ ROLE         │ ${roleName.padEnd(20)} │ TEAM                 │`,
-    `│ TOKENS       │ ${count(usage?.totalTokens ?? 0).padEnd(20)} │ ${count(state.tokenTotals.team.totalTokens).padEnd(20)} │`,
-    `│ CACHED INPUT │ ${count(usage?.cachedInputTokens ?? 0).padEnd(20)} │ ${count(state.tokenTotals.team.cachedInputTokens).padEnd(20)} │`,
-    `│ ACTIVE TIME  │ ${roleTime.padEnd(20)} │ ${formatElapsed(runElapsedMilliseconds(state)).padEnd(20)} │`,
+    `│ ROLE         │ ${role.name.padEnd(20)} │ TEAM                 │`,
+    `│ MODEL        │ ${role.model.padEnd(20)} │ ${`EFFORT ${role.effort}`.padEnd(20)} │`,
+    `│ TOKENS       │ ${count(role.totalTokens).padEnd(20)} │ ${count(state.tokenTotals.team.totalTokens).padEnd(20)} │`,
+    `│ CACHED INPUT │ ${count(role.cachedInputTokens).padEnd(20)} │ ${count(state.tokenTotals.team.cachedInputTokens).padEnd(20)} │`,
+    `│ ACTIVE TIME  │ ${role.time.padEnd(20)} │ ${formatElapsed(runElapsedMilliseconds(state)).padEnd(20)} │`,
     "└──────────────┴──────────────────────┴──────────────────────┘",
   ].join("\n");
 }
@@ -234,13 +284,14 @@ export async function recordLocalCheck(
   const detail = check.details.length
     ? `\n${check.details.map((value) => `  • ${value}`).join("\n")}`
     : "";
+  const metrics = commandMetrics(check);
 
-  const message = `\n${mark} LOCAL ${check.kind.toUpperCase()}  ·  ${check.summary}${detail}`;
+  const message = `\n${mark} LOCAL ${check.kind.toUpperCase()}  ·  ${check.summary}${metrics}${detail}`;
   await Promise.all([
     appendRole(runDirectory, check.role, message),
     appendSummary(
       runDirectory,
-      `\n${mark} LOCAL ${check.kind.toUpperCase()}  ·  ${label(check.role)}  ·  ${check.summary}${detail}\n${summaryTable(state, check.role)}`,
+      `\n${mark} LOCAL ${check.kind.toUpperCase()}  ·  ${label(check.role)}  ·  ${check.summary}${metrics}${detail}\n${summaryTable(state, check.role)}`,
     ),
   ]);
 }

@@ -40,6 +40,19 @@ Gherkin keywords:
 - Put specified exclusions in `outOfScope`.
 - Do not add external requirements that the user did not request.
 
+## Workspace inspection
+
+- Trust the deterministic workspace inventory in the prompt.
+- On an initial role turn in a new workspace, do not enumerate files.
+- In an existing workspace, use `rg --files` for file discovery.
+- Do not run both `rg --files` and `find` for the same inspection.
+- Read only files that can affect external behavior.
+- Use the role-relevant context in the prompt before you read controller state.
+- Do not read `state.json` during a normal initial role turn.
+- Read `state.json` only when `Recovery attempt` is `yes`, information
+  conflicts, or required history is missing.
+- When state access is necessary, use `jq` to read only the required fields.
+
 ## Human review and handoff
 
 A human reviews each proposed specification. If the human requests changes,

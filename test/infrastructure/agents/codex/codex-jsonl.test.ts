@@ -67,6 +67,12 @@ describe("Codex JSONL rendering", () => {
     ).toEqual(["src/domain/order.ts", "test/domain/order.test.ts"]);
   });
 
+  test("extracts the persistent Codex thread ID", () => {
+    expect(interpretCodexEvent({ type: "thread.started", thread_id: "thread-123" }).threadId).toBe(
+      "thread-123",
+    );
+  });
+
   test.each([
     ["reasoning", { type: "reasoning", summary: "Inspect the state." }, "THINKING"],
     ["MCP tool", { type: "mcp_tool_call", name: "create_pull_request" }, "TOOL"],
@@ -81,6 +87,7 @@ describe("Codex JSONL rendering", () => {
     const logPath = resolve(root, "agent.log");
     const lines = [
       "not-json",
+      JSON.stringify({ type: "thread.started", thread_id: "thread-123" }),
       JSON.stringify({ type: "turn.started" }),
       JSON.stringify({
         type: "item.completed",
@@ -97,8 +104,41 @@ describe("Codex JSONL rendering", () => {
     const log = await readFile(logPath, "utf8");
 
     expect(telemetry.changedFiles).toEqual(["src/order.ts"]);
+    expect(telemetry.threadId).toBe("thread-123");
     expect(log).toContain("Unrecognized JSONL event");
     expect(log).toContain("Agent execution started");
     expect(log).toContain("quota exhausted");
+  });
+
+  test("records command timing and output size when Codex supplies command output", async () => {
+    const root = await temporary.create("codex-jsonl-command-timing-");
+    const logPath = resolve(root, "agent.log");
+    const lines = [
+      JSON.stringify({
+        type: "item.started",
+        item: { id: "command-1", type: "command_execution", command: "bun test" },
+      }),
+      JSON.stringify({
+        type: "item.completed",
+        item: {
+          id: "command-1",
+          type: "command_execution",
+          command: "bun test",
+          exit_code: 0,
+          aggregated_output: "ok",
+        },
+      }),
+    ].join("\n");
+
+    const telemetry = await consumeCodexJsonl(new Blob([lines]).stream(), logPath);
+
+    expect(telemetry.commands[0]).toMatchObject({
+      command: "bun test",
+      exitCode: 0,
+      outputBytes: 2,
+    });
+    expect(telemetry.commands[0]?.startedAt).toBeString();
+    expect(telemetry.commands[0]?.durationMs).toBeGreaterThanOrEqual(0);
+    expect(await readFile(logPath, "utf8")).toContain("ms");
   });
 });

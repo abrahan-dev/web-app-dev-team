@@ -90,8 +90,8 @@ describe("specification restitution", () => {
     expect(result.status).toBe(RestitutionStatus.Completed);
     expect(result.completedSequences).toEqual([1, 2]);
     expect(result.nextSequence).toBe(3);
-    expect(result.tokenTotals.team.totalTokens).toBe(120);
-    expect(result.tokenTotals.byRole[Role.Architect].totalTokens).toBe(20);
+    expect(result.tokenTotals.team.totalTokens).toBe(140);
+    expect(result.tokenTotals.byRole[Role.Architect].totalTokens).toBe(40);
     expect(
       JSON.parse(await readFile(resolve(created.directory, "results", "000001.json"), "utf8")),
     ).toMatchObject({ mode: "restitution", status: RunStatus.Completed });

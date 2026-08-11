@@ -5,7 +5,11 @@ import type { AgentContext } from "../../application/ports/agent-runner.ts";
 import { describeStackCatalog } from "../configuration/stack-catalog.ts";
 import type { AgentTurn, Handoff, SpecificationReview } from "../../domain/schemas.ts";
 import { Role } from "../../domain/roles.ts";
-import { SpecificationReviewDecision, TurnDecision } from "../../domain/workflow-values.ts";
+import {
+  RunStatus,
+  SpecificationReviewDecision,
+  TurnDecision,
+} from "../../domain/workflow-values.ts";
 import { transitionDescription } from "../../domain/workflow.ts";
 import { describeWorkspaceFacts, loadWorkspaceFacts } from "../workspace/workspace-inspector.ts";
 
@@ -21,30 +25,133 @@ export function loadCommunicationStandard(): Promise<string> {
   return readFile(communicationStandardPath, "utf8");
 }
 
+export interface RoleExecutionMetadata {
+  roleTurn: number;
+  initialRoleTurn: boolean;
+  newCodexSession: boolean;
+  codexSessionResumed: boolean;
+  recoveryAttempt: boolean;
+  routedCorrection: boolean;
+  consecutiveQualityFailures: number;
+  previousRoleInterruption: string | null;
+}
+
+export function consecutiveQualityFailures(context: AgentContext): number {
+  if (![Role.DataEngineer, Role.BackendCoder, Role.FrontendCoder].includes(context.role)) {
+    return 0;
+  }
+
+  const assignment = context.state.messages.findLast((message) => message.to === context.role);
+  const checks = context.state.localChecks.filter(
+    (check) =>
+      check.role === context.role &&
+      check.kind === "quality-gate" &&
+      (!assignment || check.createdAt > assignment.createdAt),
+  );
+  let failures = 0;
+
+  for (const check of checks.toReversed()) {
+    if (check.passed) {
+      break;
+    }
+
+    failures += 1;
+  }
+
+  return failures;
+}
+
+export function roleExecutionMetadata(
+  context: AgentContext,
+  codexSessionResumed: boolean,
+): RoleExecutionMetadata {
+  const roleExecutions = context.state.executions.filter(
+    (execution) => execution.role === context.role,
+  );
+  const recoveryAttempt = roleExecutions.at(-1)?.status === RunStatus.Failed;
+  const interruption = context.state.interruptions.findLast(
+    (candidate) => candidate.role === context.role,
+  );
+  const latestAssignment = context.state.messages.findLast(
+    (message) => message.to === context.role,
+  );
+  const roleTurn = roleExecutions.length + 1;
+  const routedCorrection =
+    roleTurn > 1 &&
+    latestAssignment !== undefined &&
+    (latestAssignment.from === Role.Qa || latestAssignment.from === Role.Architect);
+
+  return {
+    roleTurn,
+    initialRoleTurn: roleTurn === 1 && !recoveryAttempt,
+    newCodexSession: !codexSessionResumed,
+    codexSessionResumed,
+    recoveryAttempt,
+    routedCorrection,
+    consecutiveQualityFailures: consecutiveQualityFailures(context),
+    previousRoleInterruption: interruption
+      ? `turn ${interruption.turn}: ${interruption.reason}`
+      : null,
+  };
+}
+
+function describeRoleExecution(metadata: RoleExecutionMetadata): string {
+  const yesNo = (value: boolean): string => (value ? "yes" : "no");
+
+  return [
+    `Role turn: ${metadata.roleTurn}`,
+    `Initial role turn: ${yesNo(metadata.initialRoleTurn)}`,
+    `New Codex session: ${yesNo(metadata.newCodexSession)}`,
+    `Codex session resumed: ${yesNo(metadata.codexSessionResumed)}`,
+    `Recovery attempt: ${yesNo(metadata.recoveryAttempt)}`,
+    `Routed correction: ${yesNo(metadata.routedCorrection)}`,
+    `Consecutive quality failures: ${metadata.consecutiveQualityFailures}`,
+    `Previous role interruption: ${metadata.previousRoleInterruption ?? "none"}`,
+  ].join("\n");
+}
+
 function list(values: string[], separator = "; "): string {
   return values.join(separator) || "none";
 }
 
 function describeSpecifier(turn: Extract<AgentTurn, { role: Role.Specifier }>): string {
-  return [
-    `Specification:\n${turn.specification}`,
-    `Assumptions: ${list(turn.assumptions)}`,
-    `Out of scope: ${list(turn.outOfScope)}`,
-  ].join("\n");
+  return [`Assumptions: ${list(turn.assumptions)}`, `Out of scope: ${list(turn.outOfScope)}`].join(
+    "\n",
+  );
 }
 
-function describeArchitect(turn: Extract<AgentTurn, { role: Role.Architect }>): string {
-  return [
-    `Design:\n${turn.design}`,
+function describeArchitect(
+  turn: Extract<AgentTurn, { role: Role.Architect }>,
+  recipient: Role,
+): string {
+  const plan = [
     `Application: ${turn.changePlan.applicationName}`,
     `Contexts: ${list(turn.changePlan.contexts, ", ")}`,
+    `Persistence contexts: ${list(turn.changePlan.persistenceContexts, ", ")}`,
     `Required surfaces: data=${turn.changePlan.dataRequired}, backend=${turn.changePlan.backendRequired}, frontend=${turn.changePlan.frontendRequired}`,
-    `Domain model: ${list(turn.domainModel)}`,
-    `API contract: ${list(turn.apiContract)}`,
-    `Security: ${list(turn.security)}`,
-    `Constraints: ${list(turn.constraints)}`,
-    `Risks: ${list(turn.risks)}`,
-  ].join("\n");
+  ];
+  const design = `Design:\n${turn.design}`;
+  const domain = `Domain model: ${list(turn.domainModel)}`;
+  const api = `API contract: ${list(turn.apiContract)}`;
+  const security = `Security: ${list(turn.security)}`;
+  const constraints = `Constraints: ${list(turn.constraints)}`;
+  const risks = `Risks: ${list(turn.risks)}`;
+  const review = [
+    `Architecture review: ${turn.reviewStatus}`,
+    `Review findings: ${list(turn.reviewFindings)}`,
+    `Review failure owner: ${turn.failureOwner ?? "none"}`,
+  ];
+  const sections: Record<Role, string[]> = {
+    [Role.Specifier]: [design, domain, api, security, constraints, risks],
+    [Role.Architect]: [design, domain, api, security, constraints, risks],
+    [Role.UiDesigner]: [design, api],
+    [Role.DataEngineer]: [domain, security, constraints, risks],
+    [Role.BackendCoder]: [design, domain, api, security, constraints, risks],
+    [Role.FrontendCoder]: [design, api, security, constraints, risks],
+    [Role.Qa]: [design, domain, api, security, constraints, risks],
+  };
+
+  return [...plan, ...sections[recipient], ...review].join("\n");
 }
 
 function describeUiDesigner(turn: Extract<AgentTurn, { role: Role.UiDesigner }>): string {
@@ -91,12 +198,12 @@ function describeQa(turn: Extract<AgentTurn, { role: Role.Qa }>): string {
   ].join("\n");
 }
 
-function describeDeliverable(message: Handoff): string {
+function describeDeliverable(message: Handoff, recipient: Role): string {
   switch (message.turn?.role) {
     case Role.Specifier:
       return describeSpecifier(message.turn);
     case Role.Architect:
-      return describeArchitect(message.turn);
+      return describeArchitect(message.turn, recipient);
     case Role.UiDesigner:
       return describeUiDesigner(message.turn);
     case Role.DataEngineer:
@@ -112,7 +219,7 @@ function describeDeliverable(message: Handoff): string {
   }
 }
 
-function describeHandoff(message: Handoff): string {
+function describeHandoff(message: Handoff, recipient: Role): string {
   if (message.turn === null) {
     return `#${message.sequence} user -> ${message.to}`;
   }
@@ -120,7 +227,7 @@ function describeHandoff(message: Handoff): string {
   return [
     `#${message.sequence} ${message.from} -> ${message.to ?? TurnDecision.Complete}`,
     `Summary: ${message.turn.summary}`,
-    describeDeliverable(message),
+    describeDeliverable(message, recipient),
     `Artifacts: ${message.turn.artifacts.join(", ") || "none"}`,
     `Evidence: ${message.turn.evidence.join("; ") || "none"}`,
     `Reason: ${message.turn.reason}`,
@@ -150,19 +257,22 @@ function relevantHandoffs(context: AgentContext): Handoff[] {
     role === Role.Specifier
       ? [latestHandoffFrom(state, Role.Architect)]
       : role === Role.Architect
-        ? [latestHandoffFrom(state, Role.Specifier), latestAddressedToRole]
+        ? state.architectureReviewStatus === "pending"
+          ? [
+              latestHandoffFrom(state, Role.Architect),
+              latestHandoffFrom(state, Role.DataEngineer),
+              latestHandoffFrom(state, Role.BackendCoder),
+              latestHandoffFrom(state, Role.FrontendCoder),
+              latestAddressedToRole,
+            ]
+          : [latestHandoffFrom(state, Role.Specifier), latestAddressedToRole]
         : role === Role.UiDesigner
           ? [latestHandoffFrom(state, Role.Architect), latestHandoffFrom(state, Role.Qa)]
           : role === Role.DataEngineer
-            ? [
-                latestHandoffFrom(state, Role.Architect),
-                latestHandoffFrom(state, Role.UiDesigner),
-                latestHandoffFrom(state, Role.Qa),
-              ]
+            ? [latestHandoffFrom(state, Role.Architect), latestHandoffFrom(state, Role.Qa)]
             : role === Role.BackendCoder
               ? [
                   latestHandoffFrom(state, Role.Architect),
-                  latestHandoffFrom(state, Role.UiDesigner),
                   latestHandoffFrom(state, Role.DataEngineer),
                   latestHandoffFrom(state, Role.Qa),
                 ]
@@ -236,16 +346,31 @@ function interruptionSummary(context: AgentContext): string {
 }
 
 function localFeedbackSummary(context: AgentContext): string {
-  return (
-    context.state.localChecks
-      .filter((check) => check.role === context.role && !check.passed)
-      .slice(-1)
-      .map(
-        (check) =>
-          `${check.kind}: ${check.summary}\n${check.details.map((detail) => `- ${detail}`).join("\n")}`,
-      )
-      .join("\n") || "none"
-  );
+  const feedback = context.state.localChecks
+    .filter((check) => check.role === context.role && !check.passed)
+    .slice(-1)
+    .map(
+      (check) =>
+        `${check.kind}: ${check.summary}\n${check.details.map((detail) => `- ${detail}`).join("\n")}`,
+    )
+    .join("\n");
+
+  if (!feedback) {
+    return "none";
+  }
+
+  if (context.role !== Role.Qa) {
+    return feedback;
+  }
+
+  return `MANDATORY QA FAILURE ROUTING:
+The controller rejected the previous QA completion.
+Do not return complete while this local check remains failed.
+Do not change implementation code.
+Use the failed paths and diagnostics to select one responsible role.
+Return a handoff with concrete failures. Set failureOwner and nextRole to that role.
+
+${feedback}`;
 }
 
 function deterministicVerificationSummary(context: AgentContext): string {
@@ -294,19 +419,90 @@ Version rules:
     : "";
 }
 
-export async function buildAgentPrompt(context: AgentContext): Promise<string> {
+function architectureTask(context: AgentContext): string {
+  if (context.role !== Role.Architect) {
+    return "not applicable";
+  }
+
+  return context.state.architectureReviewStatus === "pending"
+    ? `implementation review
+- Inspect the completed implementation against the approved specification and architecture plan.
+- Approve QA or return concrete findings to one implementation failure owner.`
+    : "technical planning";
+}
+
+export async function buildAgentPrompt(
+  context: AgentContext,
+  execution = roleExecutionMetadata(context, false),
+): Promise<string> {
   const { role, state } = context;
   const [roleInstructions, communicationStandard] = await Promise.all([
     loadRoleInstructions(role),
     loadCommunicationStandard(),
   ]);
   const facts = await loadWorkspaceFacts(state.workspace, context.runDirectory);
-  const history = relevantHandoffs(context).map(describeHandoff).join("\n\n") || "none";
+  const history =
+    relevantHandoffs(context)
+      .map((handoff) => describeHandoff(handoff, role))
+      .join("\n\n") || "none";
+
+  if (execution.routedCorrection || execution.consecutiveQualityFailures >= 2) {
+    return `You are the ${role} in a specialized web application development team.
+
+This is a focused correction assignment. Read only the files required by the current findings.
+
+Task from the user:
+${state.prompt}
+
+Role execution:
+${describeRoleExecution(execution)}
+
+Workspace:
+${state.workspace}
+
+Deterministic workspace inventory:
+${describeWorkspaceFacts(facts)}
+
+Your responsibility:
+${roleInstructions}
+
+Required communication standard:
+${communicationStandard}
+
+Role-relevant handoffs:
+${history}
+
+Latest approved specification artifact:
+${approvedArtifact(state)}
+
+Latest failed local check for this role:
+${localFeedbackSummary(context)}
+
+Rules:
+- Correct only the current findings.
+- Read the approved specification only when a finding requires functional context.
+- Use workspace-relative paths for all file edits.
+- Do not run Git commands.
+- Use focused checks while you edit.
+- Do not run full workspace format, lint, typecheck, test, coverage, build, or browser scripts.
+- Do not run the deterministic role check. The controller runs it after the handoff.
+- Do not start a local development server.
+- Never claim a command passed unless you ran it and saw it pass.
+- The final response must match the supplied JSON schema.
+- decision=handoff requires a legal nextRole.
+`;
+  }
 
   return `You are the ${role} in a specialized web application development team.
 
 Task from the user:
 ${state.prompt}
+
+Role execution:
+${describeRoleExecution(execution)}
+
+Architecture task:
+${architectureTask(context)}
 
 Workspace:
 ${state.workspace}
@@ -328,7 +524,7 @@ Deterministic workflow (no other transition is legal):
 ${transitionDescription(state.mode)}
 ${restitutionRules(state)}
 
-Role-relevant handoffs (the complete durable history remains in ${context.runDirectory}/state.json):
+Role-relevant handoffs:
 ${history}
 
 Latest relevant human specification review:
@@ -353,7 +549,10 @@ Rules:
 - Do not run Git commands. The deterministic repository workflow owns Git operations.
 - Use focused checks while you edit.
 - Do not run full workspace format, lint, typecheck, test, coverage, build, or browser scripts.
-- The controller runs full workspace scripts after this turn and returns exact failures to this role.
+- Do not run the deterministic role check. The controller runs it after a coder handoff.
+- Do not run coverage during a coder turn. The controller runs role-scoped coverage.
+- The controller checks only the code owned by this role after a coder turn.
+- QA runs the full workspace scripts and assigns each failure to its responsible role.
 - Do not start a local development server. The controller runs browser tests outside the agent sandbox.
 - Inspect node_modules only when a focused compiler error requires exact dependency behavior.
 - The fixed product stack is TypeScript, Bun, tRPC, Zod, Drizzle ORM with bun:sqlite, React and Playwright.

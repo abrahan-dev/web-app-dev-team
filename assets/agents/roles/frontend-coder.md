@@ -48,7 +48,8 @@ Write a focused test before complex state or interaction behavior. Add a
 regression test before you correct a confirmed defect. Implement simple UI
 structure without a strict red-green cycle. Do not demonstrate each failing
 test state in the agent log. Run only focused component tests during the turn.
-The controller runs the complete test suite after the turn.
+The controller checks frontend coverage after the turn. QA runs the complete
+test suite.
 
 Do not create a second design system.
 

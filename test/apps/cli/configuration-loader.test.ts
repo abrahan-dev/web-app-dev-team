@@ -19,12 +19,14 @@ describe("configuration loader", () => {
       parseEnvironmentFile(`
 # Comment
 WEB_APP_DEV_TEAM_MODEL=gpt-test
+WEB_APP_DEV_TEAM_PLANNER_MODEL=gpt-planner
 export WEB_APP_DEV_TEAM_GIT_WORKFLOW="off"
 invalid-name=value
 `),
     ).toEqual({
       WEB_APP_DEV_TEAM_GIT_WORKFLOW: "off",
       WEB_APP_DEV_TEAM_MODEL: "gpt-test",
+      WEB_APP_DEV_TEAM_PLANNER_MODEL: "gpt-planner",
     });
   });
 

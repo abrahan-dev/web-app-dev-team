@@ -32,7 +32,7 @@ test("gives tmux access to the current terminal", async () => {
   });
 });
 
-test("builds seven role panes, a wide summary pane, and a hidden orchestrator", async () => {
+test("builds seven role panes, a tall summary pane, and a hidden orchestrator", async () => {
   const commands: string[][] = [];
   const runner: CommandRunner = {
     run(command: string[]): Promise<void> {
@@ -62,12 +62,43 @@ test("builds seven role panes, a wide summary pane, and a hidden orchestrator", 
   expect(
     commands.some((command) => command.includes("history-limit") && command.includes("5000")),
   ).toBeTrue();
+  expect(commands.some((command) => command.includes("select-layout"))).toBeFalse();
+  expect(commands).toContainEqual(
+    expect.arrayContaining([
+      "split-window",
+      expect.stringContaining(":agents"),
+      "-v",
+      "-p",
+      "50",
+      expect.stringContaining(Role.FrontendCoder),
+    ]),
+  );
+  expect(commands).toContainEqual(
+    expect.arrayContaining([
+      "split-window",
+      expect.stringContaining(":agents"),
+      "-v",
+      "-p",
+      "50",
+      expect.stringContaining(Role.Qa),
+    ]),
+  );
+  expect(commands).toContainEqual(
+    expect.arrayContaining([
+      "split-window",
+      expect.stringContaining(":agents"),
+      "-v",
+      "-p",
+      "67",
+      expect.stringContaining("dist/watch-summary.js"),
+    ]),
+  );
   expect(
-    commands.some(
-      (command) =>
-        command.includes("resize-pane") && command.some((value) => value.includes("{bottom-left}")),
-    ),
-  ).toBeTrue();
+    commands.filter((command) => command[1] === "select-pane" && command.includes("-L")),
+  ).toHaveLength(2);
+  expect(
+    commands.filter((command) => command[1] === "resize-pane" && command.includes("33%")),
+  ).toHaveLength(7);
   expect(
     commands.some(
       (command) =>

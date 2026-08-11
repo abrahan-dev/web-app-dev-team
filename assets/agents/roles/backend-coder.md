@@ -49,8 +49,8 @@ errors, and authorization. Put tests in `test`. Keep the same product and layer
 structure as `src`. A test can use a descriptive name or a nested test subject.
 Keep line, function, and statement coverage at or above the configured limits.
 
-Run only the focused tests that cover the current change. The controller runs
-the complete test suite after the turn.
+Run only the focused tests that cover the current change. The controller checks
+backend coverage after the turn. QA runs the complete test suite.
 
 ## Handoff
 

@@ -78,7 +78,11 @@ Set `changePlan` with these rules:
 
 - `applicationName` is a stable, kebab-case application directory name.
 - `contexts` lists each business context that the change affects.
+- Do not create a context for static presentation content.
+- `persistenceContexts` lists only contexts that need persistence files.
+- Each `persistenceContexts` value must also exist in `contexts`.
 - `dataRequired` is true for schema, migration, query, or persistence work.
+- Set `dataRequired` to true exactly when `persistenceContexts` is not empty.
 - `backendRequired` is true for domain, use case, API, or backend work.
 - `frontendRequired` is true for visible UI changes.
 
@@ -88,7 +92,10 @@ Use this order: UI design, data, backend, frontend, and QA.
 ## Design requirements
 
 - Map each Gherkin scenario to commands, queries, and visible results.
-- Define aggregates, entities, value objects, invariants, and domain events.
+- Define only the aggregates, entities, value objects, and invariants that the
+  feature requires.
+- Define a domain event only when a specified behavior or known consumer needs
+  it.
 - Define repository interfaces in `domain/repositories`.
 - Do not make repository interfaces have the same structure as ORM interfaces.
 - Define transaction and idempotency limits.
@@ -99,7 +106,44 @@ Use this order: UI design, data, backend, frontend, and QA.
 - Do not add abstractions for possible future work.
 - Reject circular dependencies and hidden global dependencies.
 
+## Workspace inspection
+
+- Trust the deterministic workspace inventory in the prompt.
+- Do not read `workspace-facts.json`.
+- In a new workspace, read only the approved specification.
+- Do not enumerate files when `Workspace kind` is `new`.
+- In an existing workspace, inspect only files that affect the technical plan.
+
 ## Handoff
+
+When `Architecture task` is `technical planning`, set these fields:
+
+- Set `reviewStatus` to `not-applicable`.
+- Set `reviewFindings` to an empty array.
+- Set `failureOwner` to `null`.
+
+When `Architecture task` is `implementation review`, do a read-only review.
+Check the implemented contexts, boundaries, API procedures, persistence,
+migrations, security decisions, and unnecessary abstractions against the
+approved specification and your plan.
+
+For an approved implementation:
+
+- Set `reviewStatus` to `approved`.
+- Set `reviewFindings` to an empty array.
+- Set `failureOwner` to `null`.
+- Send the work to `qa`.
+
+For a failed implementation review:
+
+- Set `reviewStatus` to `changes-requested`.
+- Put concrete file-based findings in `reviewFindings`.
+- Select one responsible implementation role as `failureOwner`.
+- Set `nextRole` to the same role.
+- Do not change code.
+
+Keep the existing technical plan unchanged unless implementation evidence
+shows a real plan conflict.
 
 Return to `specifier` only when the external behavior is not clear. In all other
 cases, send the plan to the first necessary implementation role.

@@ -1,0 +1,28 @@
+import { Database } from "bun:sqlite";
+import { drizzle, type BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
+
+export interface OpenApplicationDatabase {
+  client: Database;
+  database: BunSQLiteDatabase;
+}
+
+export function createApplicationDatabase(client: Database): BunSQLiteDatabase {
+  return drizzle(client);
+}
+
+export function openApplicationDatabase(
+  path = ".data/{{applicationName}}.sqlite",
+): OpenApplicationDatabase {
+  const client = new Database(path, { create: true });
+  client.run("PRAGMA foreign_keys = ON");
+
+  return { client, database: createApplicationDatabase(client) };
+}
+
+export function migrateApplicationDatabase(
+  database: BunSQLiteDatabase,
+  migrationsFolder = "drizzle",
+): void {
+  migrate(database, { migrationsFolder });
+}

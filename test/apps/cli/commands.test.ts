@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { mkdir, stat, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import {
   CliArguments,
+  ensureWorkspaceDirectory,
   helpText,
   packageVersion,
   parseMaxTurns,
@@ -10,19 +13,79 @@ import {
   type CommandHandlers,
 } from "../../../src/apps/cli/commands.ts";
 import { emptyTokenTotals } from "../../../src/domain/token-usage.ts";
+import { Role } from "../../../src/domain/roles.ts";
 import { expectedPackageVersion } from "../../support/package-metadata.ts";
+import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
+import { refreshWorkspaceFacts } from "../../../src/infrastructure/workspace/workspace-inspector.ts";
 
 const originalMaxTurns = process.env.WEB_APP_DEV_TEAM_MAX_TURNS;
+const temporary = new TemporaryWorkspaceManager();
 
-afterEach(() => {
+afterEach(async () => {
   if (originalMaxTurns === undefined) {
     delete process.env.WEB_APP_DEV_TEAM_MAX_TURNS;
   } else {
     process.env.WEB_APP_DEV_TEAM_MAX_TURNS = originalMaxTurns;
   }
+
+  await temporary.cleanup();
 });
 
 describe("CLI arguments", () => {
+  test("creates a missing workspace directory without changing an existing one", async () => {
+    const parent = await temporary.create("web-app-dev-team-cli-");
+    const workspace = resolve(parent, "new", "application");
+
+    await ensureWorkspaceDirectory(workspace);
+    await ensureWorkspaceDirectory(workspace);
+
+    expect((await stat(workspace)).isDirectory()).toBe(true);
+  });
+
+  test("rejects a workspace path that is an existing file", async () => {
+    const parent = await temporary.create("web-app-dev-team-cli-file-");
+    const workspace = resolve(parent, "application");
+    await writeFile(workspace, "not a directory");
+
+    await expect(ensureWorkspaceDirectory(workspace)).rejects.toThrow();
+  });
+
+  test("runs the hidden deterministic role check", async () => {
+    const workspace = await temporary.create("web-app-dev-team-role-check-");
+    const runDirectory = resolve(workspace, ".web-app-dev-team/runs/check");
+    const source = resolve(workspace, "src/contexts/orders/domain/order.ts");
+    const testPath = resolve(workspace, "test/contexts/orders/domain/order.test.ts");
+    await mkdir(resolve(source, ".."), { recursive: true });
+    await mkdir(resolve(testPath, ".."), { recursive: true });
+    await mkdir(runDirectory, { recursive: true });
+    await writeFile(resolve(workspace, "bun.lock"), "");
+    await writeFile(
+      resolve(workspace, "package.json"),
+      JSON.stringify({ scripts: { "test:coverage": "bun test --coverage" } }),
+    );
+    await writeFile(resolve(workspace, "bunfig.toml"), "[test]\ncoverageThreshold = 1\n");
+    await writeFile(source, 'export const orderId = (): string => "order-1";\n');
+    await writeFile(
+      testPath,
+      'import { expect, test } from "bun:test";\nimport { orderId } from "../../../../src/contexts/orders/domain/order.ts";\ntest("creates an ID", () => expect(orderId()).toBe("order-1"));\n',
+    );
+    await refreshWorkspaceFacts(workspace, runDirectory);
+
+    await runCli([
+      "bun",
+      "index.ts",
+      "role-check",
+      "--workspace",
+      workspace,
+      "--run-dir",
+      runDirectory,
+      "--role",
+      Role.BackendCoder,
+    ]);
+
+    expect(process.exitCode).not.toBe(1);
+  });
+
   test("parses commands, flags and required values", () => {
     const arguments_ = new CliArguments([
       "bun",
@@ -74,6 +137,7 @@ describe("CLI arguments", () => {
       "restore:resume",
       "git:resume",
       "resume",
+      "role-check",
       "tmux",
       "demo",
     ];

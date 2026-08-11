@@ -6,6 +6,7 @@ import { checkArchitecture } from "../quality/architecture-guard.ts";
 
 const workspaceFactsSchema = z.object({
   workspace: z.string(),
+  workspaceKind: z.enum(["new", "existing"]),
   packageManager: z.enum(["bun", "npm", "pnpm", "yarn", "unknown"]),
   scripts: z.record(z.string(), z.string()),
   sourceRoots: z.array(z.string()),
@@ -30,6 +31,8 @@ async function packageScripts(workspace: string): Promise<Record<string, string>
 export async function inspectWorkspace(workspace: string): Promise<WorkspaceFacts> {
   const directoryEntries = await readdir(workspace, { withFileTypes: true });
   const entries = directoryEntries.map(({ name }) => name).sort();
+  const internalEntries = new Set([".DS_Store", ".git", ".web-app-dev-team", "node_modules"]);
+  const projectEntries = entries.filter((name) => !internalEntries.has(name));
   const topLevelDirectories = directoryEntries
     .filter((entry) => entry.isDirectory())
     .map(({ name }) => name)
@@ -57,6 +60,7 @@ export async function inspectWorkspace(workspace: string): Promise<WorkspaceFact
 
   return workspaceFactsSchema.parse({
     workspace,
+    workspaceKind: projectEntries.length === 0 ? "new" : "existing",
     packageManager,
     scripts: await packageScripts(workspace),
     sourceRoots,
@@ -102,6 +106,7 @@ export function describeWorkspaceFacts(facts: WorkspaceFacts): string {
   const scripts = Object.keys(facts.scripts).sort().join(", ") || "none";
 
   return [
+    `Workspace kind: ${facts.workspaceKind}`,
     `Package manager: ${facts.packageManager}`,
     `Source roots: ${facts.sourceRoots.join(", ") || "none detected"}`,
     `Test roots: ${facts.testRoots.join(", ") || "none detected"}`,

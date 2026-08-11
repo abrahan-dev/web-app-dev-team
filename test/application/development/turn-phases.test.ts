@@ -24,6 +24,7 @@ function services(passed: boolean, requests: QualityGateOptions[]): DevelopmentS
       load: (workspace) =>
         Promise.resolve({
           workspace,
+          workspaceKind: "existing",
           packageManager: "bun",
           scripts: { "test:coverage": "bun test --coverage" },
           sourceRoots: ["src"],
@@ -71,7 +72,7 @@ function services(passed: boolean, requests: QualityGateOptions[]): DevelopmentS
 }
 
 describe("development quality phase", () => {
-  test("runs core scripts without browser tests after a backend turn", async () => {
+  test("runs only role coverage after a backend turn", async () => {
     const run = DevelopmentRun.restore(runStateFactory());
     const backend = backendHandoffFactory();
 
@@ -97,14 +98,14 @@ describe("development quality phase", () => {
     expect(requests).toMatchObject([
       {
         role: Role.BackendCoder,
-        runScripts: true,
+        runScripts: false,
         runBrowserTests: false,
-        runCoverage: false,
+        runCoverage: true,
       },
     ]);
   });
 
-  test("returns failed final coverage to QA", async () => {
+  test("returns failed independent coverage verification to QA", async () => {
     const run = DevelopmentRun.restore(runStateFactory({ currentRole: Role.Qa }));
     const turn = qaCompletionFactory();
     const requests: QualityGateOptions[] = [];
@@ -121,6 +122,31 @@ describe("development quality phase", () => {
     expect(run.state.currentRole).toBe(Role.Qa);
     expect(requests).toMatchObject([
       { role: Role.Qa, runScripts: true, runBrowserTests: true, runCoverage: true },
+    ]);
+  });
+
+  test("returns failed coverage to the coder before QA", async () => {
+    const run = DevelopmentRun.restore(runStateFactory({ currentRole: Role.BackendCoder }));
+    const turn = backendHandoffFactory();
+    const requests: QualityGateOptions[] = [];
+
+    const result = await processQualityPhase({
+      accepted: { role: Role.BackendCoder, turn, result: null },
+      turn,
+      runDirectory: "/tmp/run",
+      run,
+      services: services(false, requests),
+    });
+
+    expect(result.repeatRole).toBe(true);
+    expect(run.state.currentRole).toBe(Role.BackendCoder);
+    expect(requests).toMatchObject([
+      {
+        role: Role.BackendCoder,
+        runScripts: false,
+        runBrowserTests: false,
+        runCoverage: true,
+      },
     ]);
   });
 

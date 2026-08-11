@@ -25,15 +25,15 @@ export interface TurnPhaseResult {
 }
 
 function requiresCoverage(role: Role, turn: AgentTurn): boolean {
+  return isCodeWritingRole(role) || requiresFinalVerification(role, turn);
+}
+
+function requiresFinalVerification(role: Role, turn: AgentTurn): boolean {
   return role === Role.Qa && turn.decision === TurnDecision.Complete;
 }
 
 function requiresQualityGate(role: Role, turn: AgentTurn): boolean {
-  return isCodeWritingRole(role) || requiresCoverage(role, turn);
-}
-
-function requiresAllScripts(role: Role, turn: AgentTurn): boolean {
-  return isCodeWritingRole(role) && turn.nextRole === Role.Qa;
+  return isCodeWritingRole(role) || requiresFinalVerification(role, turn);
 }
 
 function gherkinCheck(
@@ -185,7 +185,7 @@ export async function processQualityPhase(options: {
   const state = run.state;
   let { turn } = options;
   const coverageRequired = requiresCoverage(accepted.role, turn);
-  const codeWritingRole = isCodeWritingRole(accepted.role);
+  const finalVerificationRequired = requiresFinalVerification(accepted.role, turn);
 
   if (!requiresQualityGate(accepted.role, turn)) {
     return { turn, repeatRole: false };
@@ -201,8 +201,8 @@ export async function processQualityPhase(options: {
     turn: state.turns,
     sequence: run.nextCheckSequence(),
     role: accepted.role,
-    runScripts: codeWritingRole || coverageRequired,
-    runBrowserTests: requiresAllScripts(accepted.role, turn) || coverageRequired,
+    runScripts: finalVerificationRequired,
+    runBrowserTests: finalVerificationRequired,
     runCoverage: coverageRequired,
   });
   run.recordCheck(gate);

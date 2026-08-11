@@ -152,7 +152,7 @@ describe("development team orchestration", () => {
 
     expect(failed.status).toBe(RunStatus.Failed);
     expect(resumed.status).toBe(RunStatus.Completed);
-    expect(resumed.turns).toBe(7);
+    expect(resumed.turns).toBe(8);
     expect(finalizationAttempts).toBe(2);
   });
 
@@ -161,7 +161,7 @@ describe("development team orchestration", () => {
     const result = await harness.run();
 
     expect(result.status).toBe(RunStatus.Completed);
-    expect(result.turns).toBe(7);
+    expect(result.turns).toBe(8);
     expect(result.messages.map(({ from, to }) => [from, to])).toEqual([
       ["user", Role.Specifier],
       [Role.Specifier, Role.Architect],
@@ -169,7 +169,8 @@ describe("development team orchestration", () => {
       [Role.UiDesigner, Role.DataEngineer],
       [Role.DataEngineer, Role.BackendCoder],
       [Role.BackendCoder, Role.FrontendCoder],
-      [Role.FrontendCoder, Role.Qa],
+      [Role.FrontendCoder, Role.Architect],
+      [Role.Architect, Role.Qa],
       [Role.Qa, null],
     ]);
     expect(result.specificationReviews).toHaveLength(1);
@@ -209,24 +210,27 @@ describe("development team orchestration", () => {
       new FileSpecificationJournal(),
     );
 
-    expect(result.tokenTotals.team.totalTokens).toBe(840);
-    expect(result.tokenTotals.byRole[Role.Architect].totalTokens).toBe(120);
-    expect(result.executions).toHaveLength(7);
+    expect(result.tokenTotals.team.totalTokens).toBe(960);
+    expect(result.tokenTotals.byRole[Role.Architect].totalTokens).toBe(240);
+    expect(result.executions).toHaveLength(8);
     const architectLog = await readFile(
       resolve(directory, "logs", `${Role.Architect}.log`),
       "utf8",
     );
     expect(architectLog).toContain("SPECIFIER → ARCHITECT");
     expect(architectLog).toContain("ARCHITECT → UI-DESIGNER");
+    expect(architectLog).toContain("ARCHITECT → QA");
     expect(architectLog).toContain("ARCHITECT WORKING");
-    expect(architectLog).not.toContain("TEAM 840");
+    expect(architectLog).not.toContain("TEAM 960");
     const summaryLog = await readFile(resolve(directory, "logs", "summary.log"), "utf8");
     expect(summaryLog).toContain("│ TOKENS");
+    expect(summaryLog).toContain("│ MODEL");
+    expect(summaryLog).toContain("EFFORT");
     expect(summaryLog).toContain("120");
-    expect(summaryLog).toContain("840");
+    expect(summaryLog).toContain("960");
     expect(summaryLog).toContain("│ CACHED INPUT");
     expect(summaryLog).toContain("40");
-    expect(summaryLog).toContain("280");
+    expect(summaryLog).toContain("320");
     expect(summaryLog).toContain("│ ACTIVE TIME");
   });
 
@@ -244,6 +248,7 @@ describe("development team orchestration", () => {
             ...turn,
             changePlan: {
               ...turn.changePlan,
+              persistenceContexts: [],
               dataRequired: false,
               frontendRequired: false,
             },
@@ -267,7 +272,76 @@ describe("development team orchestration", () => {
     );
 
     expect(result.status).toBe(RunStatus.Completed);
-    expect(visited).toEqual([Role.Specifier, Role.Architect, Role.BackendCoder, Role.Qa]);
+    expect(visited).toEqual([
+      Role.Specifier,
+      Role.Architect,
+      Role.BackendCoder,
+      Role.Architect,
+      Role.Qa,
+    ]);
+  });
+
+  test("returns a failed architecture review to one coder before QA", async () => {
+    const directory = await newRun();
+    const scripted = new ScriptedAgentRunner();
+    const visited: Role[] = [];
+    let reviewCount = 0;
+    const runner: AgentRunner = {
+      async run(context) {
+        visited.push(context.role);
+        const turn = await scripted.run(context);
+
+        if (
+          context.role === Role.Architect &&
+          context.state.architectureReviewStatus === "pending" &&
+          reviewCount++ === 0 &&
+          turn.role === Role.Architect
+        ) {
+          return {
+            ...turn,
+            summary: "Found one backend architecture mismatch.",
+            reviewStatus: "changes-requested",
+            reviewFindings: ["src/apps/business-app/backend/router.ts bypasses the use case."],
+            failureOwner: Role.BackendCoder,
+            nextRole: Role.BackendCoder,
+            reason: "The backend coder must restore the planned application boundary.",
+          };
+        }
+
+        return turn;
+      },
+    };
+
+    const result = await runDevelopmentTeam(
+      runner,
+      directory,
+      new AutomaticSpecificationReviewer(),
+      new FileSpecificationJournal(),
+    );
+
+    expect(result.status).toBe(RunStatus.Completed);
+    expect(result.architectureReviewStatus).toBe("approved");
+    expect(visited).toEqual([
+      Role.Specifier,
+      Role.Architect,
+      Role.UiDesigner,
+      Role.DataEngineer,
+      Role.BackendCoder,
+      Role.FrontendCoder,
+      Role.Architect,
+      Role.BackendCoder,
+      Role.Architect,
+      Role.Qa,
+    ]);
+    expect(
+      result.messages.some(
+        ({ from, to, turn }) =>
+          from === Role.Architect &&
+          to === Role.BackendCoder &&
+          turn?.role === Role.Architect &&
+          turn.reviewStatus === "changes-requested",
+      ),
+    ).toBeTrue();
   });
 
   test("fails closed when an agent invents a transition", async () => {
@@ -328,6 +402,7 @@ describe("development team orchestration", () => {
           changePlan: {
             applicationName: "business-app",
             contexts: ["clarify-behavior"],
+            persistenceContexts: [],
             dataRequired: false,
             backendRequired: true,
             frontendRequired: false,
@@ -337,6 +412,9 @@ describe("development team orchestration", () => {
           security: [],
           constraints: [],
           risks: ["Ambiguous behavior."],
+          reviewStatus: "not-applicable",
+          reviewFindings: [],
+          failureOwner: null,
           artifacts: [],
           evidence: [],
           decision: TurnDecision.Handoff,
@@ -382,7 +460,7 @@ describe("development team orchestration", () => {
     );
 
     expect(result.status).toBe(RunStatus.Completed);
-    expect(result.turns).toBe(8);
+    expect(result.turns).toBe(9);
     expect(result.specificationReviews.map(({ decision }) => decision)).toEqual([
       SpecificationReviewDecision.ChangesRequested,
       SpecificationReviewDecision.Approved,
@@ -395,7 +473,8 @@ describe("development team orchestration", () => {
       [Role.UiDesigner, Role.DataEngineer],
       [Role.DataEngineer, Role.BackendCoder],
       [Role.BackendCoder, Role.FrontendCoder],
-      [Role.FrontendCoder, Role.Qa],
+      [Role.FrontendCoder, Role.Architect],
+      [Role.Architect, Role.Qa],
       [Role.Qa, null],
     ]);
   });
@@ -441,7 +520,7 @@ describe("development team orchestration", () => {
       new FileSpecificationJournal(),
     );
 
-    expect(result.turns).toBe(8);
+    expect(result.turns).toBe(9);
     expect(reviews).toBe(1);
     expect(
       result.localChecks.filter(({ kind }) => kind === "gherkin").map(({ passed }) => passed),

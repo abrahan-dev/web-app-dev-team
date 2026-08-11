@@ -13,6 +13,7 @@ import type {
 
 export interface WorkspaceFacts {
   workspace: string;
+  workspaceKind: "new" | "existing";
   packageManager: "bun" | "npm" | "pnpm" | "yarn" | "unknown";
   scripts: Record<string, string>;
   sourceRoots: string[];

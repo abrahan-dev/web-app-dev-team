@@ -16,6 +16,10 @@
           "minItems": 1,
           "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
         },
+        "persistenceContexts": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        },
         "dataRequired": { "type": "boolean" },
         "backendRequired": { "type": "boolean" },
         "frontendRequired": { "type": "boolean" }
@@ -23,6 +27,7 @@
       "required": [
         "applicationName",
         "contexts",
+        "persistenceContexts",
         "dataRequired",
         "backendRequired",
         "frontendRequired"
@@ -33,6 +38,15 @@
     "security": { "type": "array", "items": { "type": "string" } },
     "constraints": { "type": "array", "items": { "type": "string" } },
     "risks": { "type": "array", "items": { "type": "string" } },
+    "reviewStatus": {
+      "type": "string",
+      "enum": ["not-applicable", "approved", "changes-requested"]
+    },
+    "reviewFindings": { "type": "array", "items": { "type": "string" } },
+    "failureOwner": {
+      "type": ["string", "null"],
+      "enum": ["data-engineer", "backend-coder", "frontend-coder", null]
+    },
     "artifacts": { "type": "array", "items": { "type": "string" } },
     "evidence": { "type": "array", "items": { "type": "string" } },
     "decision": { "type": "string", "enum": ["handoff"] },
@@ -52,6 +66,9 @@
     "security",
     "constraints",
     "risks",
+    "reviewStatus",
+    "reviewFindings",
+    "failureOwner",
     "artifacts",
     "evidence",
     "decision",

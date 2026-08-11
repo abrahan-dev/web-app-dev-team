@@ -24,12 +24,13 @@ implementation code.
 Map each Gherkin scenario to executable evidence. Test applicable rejection,
 authorization, loading, and error behavior. Also test the successful path.
 
-The controller runs the final coverage check after this turn. Do not run the
-full coverage script yourself. The controller also runs browser tests outside
-the agent sandbox. Do not start a local server or rerun full workspace scripts.
-Use the latest deterministic verification as executable evidence. Add missing
-tests when focused evidence shows a gap. Browser E2E tests do not replace unit
-or integration coverage.
+The controller runs role-scoped coverage before each coder handoff. It runs all
+workspace scripts and full coverage during final QA verification. Do not run
+the full coverage script yourself. The controller runs final browser tests
+outside the agent sandbox. Do not start a local server or rerun full workspace
+scripts. Use the latest deterministic verification as executable evidence. Add
+missing tests when focused evidence shows a gap. Browser E2E tests do not
+replace unit or integration coverage.
 
 Do not repeat a focused test that already has current passing evidence. Do not
 require a coder to demonstrate a failing test before a correction. Add only the
@@ -42,6 +43,16 @@ not add a low-value test only to increase a coverage percentage.
 
 Complete only when each scenario passes and `failures` is empty. Set
 `failureOwner` and `nextRole` to null.
+
+Inspect the latest failed local check before completion. The controller can
+reject a prior QA completion after final browser, coverage, or workspace checks. Do not
+complete again while that check remains failed. Do not rerun the unchanged
+full check. Use its file paths and diagnostics to select the responsible role.
+Return a handoff with concrete failures. Set `failureOwner` and `nextRole` to
+that role.
+
+Assign a failure only to the role that owns the failed implementation. Do not
+ask a role to correct code owned by a different role.
 
 An unavailable browser or a denied local port inside the agent sandbox is not
 an application failure. Do not assign that environment condition to a coder.

@@ -44,6 +44,10 @@ describe("user configurator", () => {
     expect(await readFile(path, "utf8")).toContain("GITHUB_PERSONAL_ACCESS_TOKEN=github_pat_test");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-5.6-luna");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=high");
+    expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_PLANNER_MODEL=gpt-5.6-sol");
+    expect(await readFile(path, "utf8")).toContain(
+      "WEB_APP_DEV_TEAM_PLANNER_MODEL_REASONING_EFFORT=xhigh",
+    );
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=100");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=10");
     expect(await readFile(path, "utf8")).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=on");
@@ -141,10 +145,12 @@ describe("user configurator", () => {
     const home = await temporary.create("configure-settings-");
     const answers: Record<string, string> = {
       "Architecture guard": "off",
-      "Codex model": "gpt-custom",
+      "Execution Codex model": "gpt-execution",
+      "Execution reasoning effort": "medium",
       "Maximum cyclomatic complexity": "8",
       "Maximum turns": "20",
-      "Model reasoning effort": "xhigh",
+      "Planner Codex model": "gpt-planner",
+      "Planner reasoning effort": "max",
     };
 
     await configureUser({
@@ -162,8 +168,10 @@ describe("user configurator", () => {
     });
 
     const content = await readFile(join(home, ".config/web-app-dev-team/config.env"), "utf8");
-    expect(content).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-custom");
-    expect(content).toContain("WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=xhigh");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-execution");
+    expect(content).toContain("WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=medium");
+    expect(content).toContain("WEB_APP_DEV_TEAM_PLANNER_MODEL=gpt-planner");
+    expect(content).toContain("WEB_APP_DEV_TEAM_PLANNER_MODEL_REASONING_EFFORT=max");
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=20");
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=8");
     expect(content).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=off");
@@ -195,10 +203,12 @@ describe("user configurator", () => {
     const messages: string[] = [];
     const answers: Record<string, string[]> = {
       "Architecture guard": ["maybe", "off"],
-      "Codex model": ["invalid model", "gpt-valid"],
+      "Execution Codex model": ["invalid model", "gpt-valid"],
+      "Execution reasoning effort": ["extreme", "high"],
       "Maximum cyclomatic complexity": ["0", "8"],
       "Maximum turns": ["none", "20"],
-      "Model reasoning effort": ["extreme", "high"],
+      "Planner Codex model": ["invalid model", "gpt-planner"],
+      "Planner reasoning effort": ["extreme", "xhigh"],
     };
 
     await configureUser({
@@ -218,9 +228,11 @@ describe("user configurator", () => {
     const content = await readFile(join(home, ".config/web-app-dev-team/config.env"), "utf8");
     expect(content).toContain("WEB_APP_DEV_TEAM_MODEL=gpt-valid");
     expect(content).toContain("WEB_APP_DEV_TEAM_MODEL_REASONING_EFFORT=high");
+    expect(content).toContain("WEB_APP_DEV_TEAM_PLANNER_MODEL=gpt-planner");
+    expect(content).toContain("WEB_APP_DEV_TEAM_PLANNER_MODEL_REASONING_EFFORT=xhigh");
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_TURNS=20");
     expect(content).toContain("WEB_APP_DEV_TEAM_MAX_COMPLEXITY=8");
     expect(content).toContain("WEB_APP_DEV_TEAM_ARCHITECTURE_GUARD=off");
-    expect(messages.filter((message) => message.endsWith("Try again.")).length).toBe(5);
+    expect(messages.filter((message) => message.endsWith("Try again.")).length).toBe(7);
   });
 });

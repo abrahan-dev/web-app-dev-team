@@ -25,6 +25,7 @@ const turns: Record<Role, AgentTurn> = {
     changePlan: {
       applicationName: "business-app",
       contexts: ["generic-feature"],
+      persistenceContexts: ["generic-feature"],
       dataRequired: true,
       backendRequired: true,
       frontendRequired: true,
@@ -34,6 +35,9 @@ const turns: Record<Role, AgentTurn> = {
     security: ["The procedure requires an authenticated actor."],
     constraints: ["Dependencies point toward src/contexts/*/domain."],
     risks: [],
+    reviewStatus: "not-applicable",
+    reviewFindings: [],
+    failureOwner: null,
     artifacts: [],
     evidence: ["Every Gherkin outcome is assigned to an implementation surface."],
     decision: TurnDecision.Handoff,
@@ -109,6 +113,25 @@ const turns: Record<Role, AgentTurn> = {
 
 export class ScriptedAgentRunner implements AgentRunner {
   run(context: AgentContext): Promise<AgentTurn> {
+    if (context.role === Role.Architect && context.state.architectureReviewStatus === "pending") {
+      const plan = turns[Role.Architect];
+
+      if (plan.role !== Role.Architect) {
+        throw new Error("The scripted architect plan is invalid.");
+      }
+
+      return Promise.resolve({
+        ...plan,
+        summary: "Approved the completed implementation against the architecture plan.",
+        reviewStatus: "approved",
+        reviewFindings: [],
+        failureOwner: null,
+        evidence: ["The implementation matches the planned boundaries and contracts."],
+        nextRole: Role.Qa,
+        reason: "The implementation is ready for independent QA.",
+      });
+    }
+
     return Promise.resolve(turns[context.role]);
   }
 }

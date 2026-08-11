@@ -24,6 +24,16 @@ async function workspace(scripts: Record<string, string>): Promise<string> {
 }
 
 describe("local quality gate commands", () => {
+  test("records command duration and output size", async () => {
+    const root = await workspace({});
+    const result = await runLocalCommand(["bun", "-e", 'console.log("timed")'], root);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.startedAt).toBeString();
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    expect(result.outputBytes).toBeGreaterThan(0);
+  });
+
   test("checks cyclomatic complexity only in files changed by the coder", async () => {
     const root = await workspace({});
     await mkdir(resolve(root, "src"), { recursive: true });
@@ -163,6 +173,68 @@ describe("local quality gate commands", () => {
     });
 
     expect(result.commands.map(({ command }) => command)).toEqual(["bun run test:coverage"]);
+  });
+
+  test("merges project and role coverage patterns for coder-owned tests", async () => {
+    const root = await workspace({ "test:coverage": "bun test --coverage" });
+    const dataTest = "test/contexts/accounts/infrastructure/persistence/database.test.ts";
+    const frontendTest = "test/apps/operations/frontend/app.test.tsx";
+    await writeFile(
+      resolve(root, "bunfig.toml"),
+      '[test]\ncoveragePathIgnorePatterns = [\n  "src/contexts/accounts/infrastructure/persistence/schema.ts",\n]\ncoverageThreshold = 1\n',
+    );
+    await mkdir(resolve(root, dataTest, ".."), { recursive: true });
+    await mkdir(resolve(root, frontendTest, ".."), { recursive: true });
+    await mkdir(resolve(root, "src/contexts/accounts/infrastructure/persistence"), {
+      recursive: true,
+    });
+    await mkdir(resolve(root, "src/contexts/accounts/domain"), { recursive: true });
+    await writeFile(
+      resolve(root, "src/contexts/accounts/infrastructure/persistence/database.ts"),
+      'export const covered = (): string => "covered";\n',
+    );
+    await writeFile(
+      resolve(root, "src/contexts/accounts/infrastructure/persistence/schema.ts"),
+      'export const ignoredSchema = (): string => "schema";\n',
+    );
+    await writeFile(
+      resolve(root, "src/contexts/accounts/domain/uncovered.ts"),
+      'export const otherRoleCode = (): string => "domain";\n',
+    );
+    await writeFile(
+      resolve(root, dataTest),
+      'import { expect, test } from "bun:test";\nimport { covered } from "../../../../../src/contexts/accounts/infrastructure/persistence/database.ts";\nimport { ignoredSchema } from "../../../../../src/contexts/accounts/infrastructure/persistence/schema.ts";\nimport { otherRoleCode } from "../../../../../src/contexts/accounts/domain/uncovered.ts";\nvoid ignoredSchema;\nvoid otherRoleCode;\ntest("covers persistence", () => expect(covered()).toBe("covered"));\n',
+    );
+    await writeFile(
+      resolve(root, frontendTest),
+      'import { expect, test } from "bun:test";\ntest("passes", () => expect(true).toBe(true));\n',
+    );
+
+    const data = await runQualityGate({
+      workspace: root,
+      facts: await inspectWorkspace(root),
+      changedFiles: [],
+      turn: 1,
+      sequence: 1,
+      role: Role.DataEngineer,
+      runScripts: false,
+      runCoverage: true,
+    });
+    const qa = await runQualityGate({
+      workspace: root,
+      facts: await inspectWorkspace(root),
+      changedFiles: [],
+      turn: 2,
+      sequence: 2,
+      role: Role.Qa,
+      runScripts: false,
+      runCoverage: true,
+    });
+
+    expect(data.commands[0]?.command).toContain("bun --config=");
+    expect(data.commands[0]?.command).toEndWith(` test --coverage ${dataTest}`);
+    expect(data.details).toEqual([]);
+    expect(qa.commands[0]?.command).toBe("bun run test:coverage");
   });
 
   test("fails when Bun reports coverage below the configured limit", async () => {

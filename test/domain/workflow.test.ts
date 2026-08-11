@@ -11,6 +11,7 @@ import {
 const fullStack: ChangePlan = {
   applicationName: "operations",
   contexts: ["orders"],
+  persistenceContexts: ["orders"],
   dataRequired: true,
   backendRequired: true,
   frontendRequired: true,
@@ -35,11 +36,12 @@ describe("deterministic specialized workflow", () => {
     expect(nextImplementationRole(Role.UiDesigner, fullStack)).toBe(Role.DataEngineer);
     expect(nextImplementationRole(Role.DataEngineer, fullStack)).toBe(Role.BackendCoder);
     expect(nextImplementationRole(Role.BackendCoder, fullStack)).toBe(Role.FrontendCoder);
-    expect(nextImplementationRole(Role.FrontendCoder, fullStack)).toBe(Role.Qa);
+    expect(nextImplementationRole(Role.FrontendCoder, fullStack)).toBe(Role.Architect);
 
     expect(
       firstImplementationRole({
         ...fullStack,
+        persistenceContexts: [],
         dataRequired: false,
         frontendRequired: false,
       }),
@@ -62,6 +64,32 @@ describe("deterministic specialized workflow", () => {
     ).not.toThrow();
     expect(() =>
       validateTransition(Role.FrontendCoder, turn(Role.Architect), "delivery", fullStack),
+    ).not.toThrow();
+    expect(() =>
+      validateTransition(
+        Role.Architect,
+        {
+          ...turn(Role.Qa),
+          reviewStatus: "approved",
+          reviewFindings: [],
+        },
+        "delivery",
+        fullStack,
+        "pending",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateTransition(
+        Role.Architect,
+        {
+          ...turn(Role.BackendCoder, TurnDecision.Handoff, Role.BackendCoder),
+          reviewStatus: "changes-requested",
+          reviewFindings: ["src/backend.ts violates the planned boundary."],
+        },
+        "delivery",
+        fullStack,
+        "pending",
+      ),
     ).not.toThrow();
     expect(() =>
       validateTransition(

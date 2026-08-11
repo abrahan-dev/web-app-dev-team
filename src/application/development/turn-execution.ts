@@ -90,7 +90,13 @@ export async function executeAgentTurn(options: {
   }
 
   turn = canonicalizeNextRole(state, turn);
-  validateTransition(role, turn, state.mode, latestChangePlan(state, turn));
+  validateTransition(
+    role,
+    turn,
+    state.mode,
+    latestChangePlan(state, turn),
+    state.architectureReviewStatus,
+  );
   run.recordExecution(
     role,
     attempt.startedAt,

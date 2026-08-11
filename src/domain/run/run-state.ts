@@ -43,6 +43,9 @@ export const agentExecutionSchema = z.object({
       z.object({
         command: z.string(),
         exitCode: z.number().int().nullable(),
+        startedAt: z.string().optional(),
+        durationMs: z.number().int().nonnegative().optional(),
+        outputBytes: z.number().int().nonnegative().optional(),
       }),
     )
     .default([]),
@@ -54,6 +57,9 @@ export const localCommandResultSchema = z.object({
   command: z.string(),
   exitCode: z.number().int(),
   output: z.string(),
+  startedAt: z.string().optional(),
+  durationMs: z.number().int().nonnegative().optional(),
+  outputBytes: z.number().int().nonnegative().optional(),
 });
 export type LocalCommandResult = z.infer<typeof localCommandResultSchema>;
 
@@ -84,6 +90,15 @@ export const workspaceBootstrapSchema = z.object({
   commands: z.array(localCommandResultSchema),
 });
 export type WorkspaceBootstrap = z.infer<typeof workspaceBootstrapSchema>;
+
+export const architectureReviewStatuses = [
+  "not-started",
+  "pending",
+  "changes-requested",
+  "approved",
+] as const;
+export const architectureReviewStatusSchema = z.enum(architectureReviewStatuses);
+export type ArchitectureReviewStatus = z.infer<typeof architectureReviewStatusSchema>;
 
 export const handoffSchema = z.object({
   id: z.string(),
@@ -163,6 +178,7 @@ export const runStateSchema = z.object({
   executions: z.array(agentExecutionSchema).default([]),
   localChecks: z.array(localCheckSchema).default([]),
   workspaceBootstrap: workspaceBootstrapSchema.nullable().default(null),
+  architectureReviewStatus: architectureReviewStatusSchema.default("not-started"),
   gitWorkflow: gitWorkflowStateSchema.nullable().default(null),
 });
 export type RunState = z.infer<typeof runStateSchema>;

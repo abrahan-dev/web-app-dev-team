@@ -1,4 +1,4 @@
-import { roles } from "../../domain/schemas.ts";
+import { Role } from "../../domain/schemas.ts";
 import { cliEntryPath, roleWatcherPath, summaryWatcherPath } from "../../package-paths.ts";
 import { paneBorderFormat } from "./active-role-accent.ts";
 
@@ -61,8 +61,23 @@ function summaryCommand(runDirectory: string): string {
   return ["bun", "run", summaryWatcherPath, runDirectory].map(shellQuote).join(" ");
 }
 
-function bottomRowResizeCommand(session: string): string {
-  return `resize-pane -t ${shellQuote(`${session}:agents.{bottom-left}`)} -x 33%`;
+const dashboardPaneSizes = [
+  { pane: 0, direction: "-x", size: "33%" },
+  { pane: 3, direction: "-x", size: "33%" },
+  { pane: 0, direction: "-y", size: "33%" },
+  { pane: 1, direction: "-y", size: "33%" },
+  { pane: 3, direction: "-y", size: "33%" },
+  { pane: 4, direction: "-y", size: "33%" },
+  { pane: 6, direction: "-y", size: "33%" },
+] as const;
+
+function dashboardResizeCommand(session: string): string {
+  return dashboardPaneSizes
+    .map(
+      ({ pane, direction, size }) =>
+        `resize-pane -t ${shellQuote(`${session}:agents.${pane}`)} ${direction} ${size}`,
+    )
+    .join(" ; ");
 }
 
 export async function launchTmux(options: {
@@ -73,7 +88,6 @@ export async function launchTmux(options: {
   controllerCommand?: (session: string) => string[];
 }): Promise<string> {
   const session = `web-app-dev-team-${Date.now()}`;
-  const [first, ...rest] = roles;
 
   await options.runner.run([
     "tmux",
@@ -85,47 +99,80 @@ export async function launchTmux(options: {
     "agents",
     "-c",
     options.workspace,
-    watcherCommand(options.runDirectory, first),
+    watcherCommand(options.runDirectory, Role.Specifier),
   ]);
 
-  for (const role of rest) {
+  await options.runner.run([
+    "tmux",
+    "set-option",
+    "-w",
+    "-t",
+    `${session}:agents`,
+    "pane-base-index",
+    "0",
+  ]);
+
+  const splitRole = async (
+    direction: "-h" | "-v",
+    percentage: string,
+    role: Role,
+  ): Promise<void> => {
     await options.runner.run([
       "tmux",
       "split-window",
       "-t",
       `${session}:agents`,
+      direction,
+      "-p",
+      percentage,
       "-c",
       options.workspace,
       watcherCommand(options.runDirectory, role),
     ]);
-    await options.runner.run(["tmux", "select-layout", "-t", `${session}:agents`, "tiled"]);
-  }
+  };
+
+  await splitRole("-h", "67", Role.Architect);
+  await splitRole("-h", "50", Role.UiDesigner);
 
   await options.runner.run([
     "tmux",
     "split-window",
     "-t",
     `${session}:agents`,
+    "-v",
+    "-p",
+    "67",
     "-c",
     options.workspace,
     summaryCommand(options.runDirectory),
   ]);
-  await options.runner.run(["tmux", "select-layout", "-t", `${session}:agents`, "tiled"]);
-  await options.runner.run([
-    "tmux",
-    "resize-pane",
-    "-t",
-    `${session}:agents.{bottom-left}`,
-    "-x",
-    "33%",
-  ]);
+
+  await options.runner.run(["tmux", "select-pane", "-t", `${session}:agents`, "-L"]);
+  await splitRole("-v", "67", Role.BackendCoder);
+  await splitRole("-v", "50", Role.Qa);
+
+  await options.runner.run(["tmux", "select-pane", "-t", `${session}:agents`, "-L"]);
+  await splitRole("-v", "67", Role.DataEngineer);
+  await splitRole("-v", "50", Role.FrontendCoder);
+
+  for (const { pane, direction, size } of dashboardPaneSizes) {
+    await options.runner.run([
+      "tmux",
+      "resize-pane",
+      "-t",
+      `${session}:agents.${pane}`,
+      direction,
+      size,
+    ]);
+  }
+
   await options.runner.run([
     "tmux",
     "set-hook",
     "-t",
     session,
     "client-attached",
-    bottomRowResizeCommand(session),
+    dashboardResizeCommand(session),
   ]);
   await options.runner.run([
     "tmux",
@@ -133,7 +180,7 @@ export async function launchTmux(options: {
     "-t",
     session,
     "client-resized",
-    bottomRowResizeCommand(session),
+    dashboardResizeCommand(session),
   ]);
 
   await options.runner.run(["tmux", "set-option", "-t", session, "mouse", "on"]);

@@ -1,4 +1,4 @@
-import type { ChangePlan } from "./schemas.ts";
+import type { ArchitectureReviewStatus, ChangePlan } from "./schemas.ts";
 import { Role } from "./roles.ts";
 import { TurnDecision } from "./workflow-values.ts";
 
@@ -7,6 +7,8 @@ interface WorkflowDecision {
   nextRole: Role | null;
   failureOwner?: Role | null;
   failures?: string[];
+  reviewStatus?: "not-applicable" | "approved" | "changes-requested";
+  reviewFindings?: string[];
 }
 
 function validateCompletion(from: Role, turn: WorkflowDecision): void {
@@ -47,16 +49,40 @@ function validateQaFeedback(turn: WorkflowDecision, nextRole: Role): void {
   }
 }
 
-function validatePlannedHandoff(from: Role, nextRole: Role, plan?: ChangePlan): void {
+function validatePlannedHandoff(
+  from: Role,
+  nextRole: Role,
+  plan: ChangePlan | undefined,
+  reviewStatus: ArchitectureReviewStatus,
+): void {
   if (!plan) {
     throw new Error(`A technical change plan is required after ${from}.`);
   }
 
-  const expected = nextImplementationRole(from, plan);
+  const expected = plannedNextRole(from, plan, reviewStatus);
 
   if (nextRole !== expected) {
     throw new Error(`Invalid handoff: ${from} must hand off to ${expected}, not ${nextRole}.`);
   }
+}
+
+function validateArchitectReview(turn: WorkflowDecision, nextRole: Role): void {
+  if (turn.reviewStatus === "approved" && nextRole === Role.Qa && !turn.failureOwner) {
+    return;
+  }
+
+  if (
+    turn.reviewStatus === "changes-requested" &&
+    turn.reviewFindings?.length &&
+    turn.failureOwner === nextRole &&
+    [Role.DataEngineer, Role.BackendCoder, Role.FrontendCoder].includes(nextRole)
+  ) {
+    return;
+  }
+
+  throw new Error(
+    "Architecture review must approve QA or return concrete findings to one failure owner.",
+  );
 }
 
 function returnsApprovedSpecificationToSpecifier(
@@ -110,7 +136,54 @@ export function nextImplementationRole(from: Role, plan: ChangePlan): Role {
     return Role.FrontendCoder;
   }
 
-  return Role.Qa;
+  return Role.Architect;
+}
+
+export function plannedNextRole(
+  from: Role,
+  plan: ChangePlan,
+  reviewStatus: ArchitectureReviewStatus = "not-started",
+): Role {
+  if (
+    reviewStatus !== "not-started" &&
+    [Role.DataEngineer, Role.BackendCoder, Role.FrontendCoder].includes(from)
+  ) {
+    return Role.Architect;
+  }
+
+  return nextImplementationRole(from, plan);
+}
+
+function validateRoleSpecificHandoff(
+  from: Role,
+  turn: WorkflowDecision,
+  nextRole: Role,
+  architectureReviewStatus: ArchitectureReviewStatus,
+): boolean {
+  switch (from) {
+    case Role.Specifier:
+      validateSpecifierHandoff(nextRole);
+
+      return true;
+    case Role.Qa:
+      validateQaFeedback(turn, nextRole);
+
+      return true;
+    case Role.Architect:
+      if (architectureReviewStatus === "pending") {
+        validateArchitectReview(turn, nextRole);
+
+        return true;
+      }
+
+      if ((turn.reviewStatus ?? "not-applicable") !== "not-applicable") {
+        throw new Error("Architecture planning must use reviewStatus=not-applicable.");
+      }
+
+      return false;
+    default:
+      return false;
+  }
 }
 
 export function validateTransition(
@@ -118,6 +191,7 @@ export function validateTransition(
   turn: WorkflowDecision,
   mode: "delivery" | "restitution" = "delivery",
   plan?: ChangePlan,
+  architectureReviewStatus: ArchitectureReviewStatus = "not-started",
 ): void {
   if (turn.decision === TurnDecision.Complete) {
     validateCompletion(from, turn);
@@ -133,15 +207,7 @@ export function validateTransition(
     );
   }
 
-  if (from === Role.Specifier) {
-    validateSpecifierHandoff(nextRole);
-
-    return;
-  }
-
-  if (from === Role.Qa) {
-    validateQaFeedback(turn, nextRole);
-
+  if (validateRoleSpecificHandoff(from, turn, nextRole, architectureReviewStatus)) {
     return;
   }
 
@@ -153,7 +219,7 @@ export function validateTransition(
     return;
   }
 
-  validatePlannedHandoff(from, nextRole, plan);
+  validatePlannedHandoff(from, nextRole, plan, architectureReviewStatus);
 }
 
 export function transitionDescription(mode: "delivery" | "restitution" = "delivery"): string {
@@ -164,8 +230,9 @@ export function transitionDescription(mode: "delivery" | "restitution" = "delive
     "architect -> specifier (clarification) | first required implementation role",
     "ui-designer -> architect (blocker) | next required implementation role",
     "data-engineer -> architect (blocker) | next required implementation role",
-    "backend-coder -> architect (blocker) | frontend-coder | qa",
-    "frontend-coder -> architect (blocker) | qa",
+    "backend-coder -> architect (blocker or final review) | frontend-coder",
+    "frontend-coder -> architect (blocker or final review)",
+    "architect review -> qa | one declared implementation failure owner",
     "qa -> complete | declared failure owner",
   ].join("\n");
 }

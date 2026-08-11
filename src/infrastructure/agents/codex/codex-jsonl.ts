@@ -6,6 +6,7 @@ type JsonObject = Record<string, unknown>;
 export interface InterpretedCodexEvent {
   display: string | null;
   usage: TokenUsage | null;
+  threadId: string | null;
   command: { command: string; exitCode: number | null } | null;
   changedFiles: string[];
 }
@@ -35,6 +36,7 @@ function tokenCount(value: number): string {
 const emptyEvent = (): InterpretedCodexEvent => ({
   display: null,
   usage: null,
+  threadId: null,
   command: null,
   changedFiles: [],
 });
@@ -107,6 +109,7 @@ function interpretItemEvent(event: JsonObject, completed: boolean): InterpretedC
   return {
     display: itemDescription(item, completed),
     usage: null,
+    threadId: null,
     command:
       completed && commandText
         ? {
@@ -133,6 +136,7 @@ function interpretCompletedTurn(event: JsonObject): InterpretedCodexEvent {
   return {
     display: `  CODEX ✓      ${tokenCount(usage.totalTokens)} tokens (${tokenCount(usage.inputTokens)} input · ${tokenCount(usage.cachedInputTokens)} cached · ${tokenCount(usage.outputTokens)} output)`,
     usage,
+    threadId: null,
     command: null,
     changedFiles: [],
   };
@@ -145,6 +149,7 @@ function interpretFailedTurn(event: JsonObject): InterpretedCodexEvent {
   return {
     display: `  CODEX ✗      ${compact(message)}`,
     usage: null,
+    threadId: null,
     command: null,
     changedFiles: [],
   };
@@ -153,9 +158,17 @@ function interpretFailedTurn(event: JsonObject): InterpretedCodexEvent {
 type EventInterpreter = (event: JsonObject) => InterpretedCodexEvent;
 
 const eventInterpreters: Record<string, EventInterpreter> = {
+  "thread.started": (event) => ({
+    display: null,
+    usage: null,
+    threadId: text(event.thread_id),
+    command: null,
+    changedFiles: [],
+  }),
   "turn.started": () => ({
     display: "  CODEX ▶      Agent execution started",
     usage: null,
+    threadId: null,
     command: null,
     changedFiles: [],
   }),
@@ -175,20 +188,123 @@ export function interpretCodexEvent(value: unknown): InterpretedCodexEvent {
 
 export interface CodexTelemetry {
   usage: TokenUsage | null;
-  commands: Array<{ command: string; exitCode: number | null }>;
+  threadId: string | null;
+  commands: Array<{
+    command: string;
+    exitCode: number | null;
+    startedAt?: string;
+    durationMs?: number;
+    outputBytes?: number;
+  }>;
   changedFiles: string[];
+}
+
+interface CommandEventDetails {
+  eventType: string | null;
+  id: string | null;
+  item: JsonObject | null;
+}
+
+interface CommandTiming {
+  startedAt: string;
+  started: number;
+}
+
+function commandEventDetails(value: unknown): CommandEventDetails {
+  const event = object(value);
+  const item = object(event?.item);
+  const command = text(item?.type) === "command_execution" ? text(item?.command) : null;
+
+  return {
+    eventType: text(event?.type),
+    id: text(item?.id) ?? command,
+    item,
+  };
+}
+
+function recordCommandStart(
+  details: CommandEventDetails,
+  commandStarts: Map<string, CommandTiming>,
+): void {
+  if (details.eventType === "item.started" && details.id) {
+    commandStarts.set(details.id, {
+      startedAt: new Date().toISOString(),
+      started: performance.now(),
+    });
+  }
+}
+
+function commandOutput(item: JsonObject | null): string | undefined {
+  if (typeof item?.aggregated_output === "string") {
+    return item.aggregated_output;
+  }
+
+  return typeof item?.output === "string" ? item.output : undefined;
+}
+
+function completedCommand(
+  interpreted: InterpretedCodexEvent,
+  details: CommandEventDetails,
+  commandStarts: Map<string, CommandTiming>,
+): CodexTelemetry["commands"][number] | null {
+  if (!interpreted.command) {
+    return null;
+  }
+
+  const timing = details.id ? commandStarts.get(details.id) : undefined;
+  const output = commandOutput(details.item);
+
+  return {
+    ...interpreted.command,
+    ...(timing
+      ? {
+          startedAt: timing.startedAt,
+          durationMs: Math.round(performance.now() - timing.started),
+        }
+      : {}),
+    ...(output === undefined ? {} : { outputBytes: new TextEncoder().encode(output).byteLength }),
+  };
+}
+
+async function appendEventDisplay(
+  logPath: string,
+  interpreted: InterpretedCodexEvent,
+  command: CodexTelemetry["commands"][number] | null,
+): Promise<void> {
+  if (!interpreted.display) {
+    return;
+  }
+
+  const duration = command?.durationMs;
+  await appendFile(
+    logPath,
+    `${interpreted.display}${duration === undefined ? "" : ` · ${duration}ms`}\n`,
+  );
 }
 
 export async function consumeCodexJsonl(
   stream: ReadableStream<Uint8Array>,
   logPath: string,
+  onFirstEvent?: () => Promise<void>,
 ): Promise<CodexTelemetry> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let pending = "";
   let usage: TokenUsage | null = null;
+  let threadId: string | null = null;
   const commands: CodexTelemetry["commands"] = [];
   const changedFiles = new Set<string>();
+  const commandStarts = new Map<string, CommandTiming>();
+  let firstEventSeen = false;
+
+  async function announceFirstEvent(): Promise<void> {
+    if (firstEventSeen) {
+      return;
+    }
+
+    firstEventSeen = true;
+    await onFirstEvent?.();
+  }
 
   async function consumeLine(line: string): Promise<void> {
     if (!line.trim()) {
@@ -196,16 +312,20 @@ export async function consumeCodexJsonl(
     }
 
     try {
-      const interpreted = interpretCodexEvent(JSON.parse(line));
-
-      if (interpreted.display) {
-        await appendFile(logPath, `${interpreted.display}\n`);
-      }
+      await announceFirstEvent();
+      const value = JSON.parse(line);
+      const details = commandEventDetails(value);
+      recordCommandStart(details, commandStarts);
+      const interpreted = interpretCodexEvent(value);
+      const command = completedCommand(interpreted, details, commandStarts);
+      await appendEventDisplay(logPath, interpreted, command);
 
       usage = interpreted.usage ?? usage;
+      threadId = interpreted.threadId ?? threadId;
 
-      if (interpreted.command) {
-        commands.push(interpreted.command);
+      if (command) {
+        commands.push(command);
+        commandStarts.delete(details.id ?? "");
       }
 
       for (const path of interpreted.changedFiles) {
@@ -229,7 +349,7 @@ export async function consumeCodexJsonl(
     if (done) {
       await consumeLine(pending);
 
-      return { usage, commands, changedFiles: [...changedFiles] };
+      return { usage, threadId, commands, changedFiles: [...changedFiles] };
     }
   }
 }
