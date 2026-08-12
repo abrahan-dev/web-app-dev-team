@@ -11,6 +11,7 @@ import {
   TurnDecision,
 } from "../../domain/workflow-values.ts";
 import { transitionDescription } from "../../domain/workflow.ts";
+import { activeQualityFailure } from "../../application/development/quality-feedback.ts";
 import { describeWorkspaceFacts, loadWorkspaceFacts } from "../workspace/workspace-inspector.ts";
 
 export function roleInstructionsPath(role: Role): string {
@@ -250,6 +251,12 @@ function latestHandoffFrom(state: AgentContext["state"], role: Role): Handoff | 
   return state.messages.findLast((message) => message.turn?.role === role);
 }
 
+function previousArchitectRequestedChanges(state: AgentContext["state"]): boolean {
+  const turn = latestHandoffFrom(state, Role.Architect)?.turn;
+
+  return turn?.role === Role.Architect && turn.reviewStatus === "changes-requested";
+}
+
 function relevantHandoffs(context: AgentContext): Handoff[] {
   const { role, state } = context;
   const latestAddressedToRole = state.messages.findLast((message) => message.to === role);
@@ -258,13 +265,15 @@ function relevantHandoffs(context: AgentContext): Handoff[] {
       ? [latestHandoffFrom(state, Role.Architect)]
       : role === Role.Architect
         ? state.architectureReviewStatus === "pending"
-          ? [
-              latestHandoffFrom(state, Role.Architect),
-              latestHandoffFrom(state, Role.DataEngineer),
-              latestHandoffFrom(state, Role.BackendCoder),
-              latestHandoffFrom(state, Role.FrontendCoder),
-              latestAddressedToRole,
-            ]
+          ? previousArchitectRequestedChanges(state)
+            ? [latestHandoffFrom(state, Role.Architect), latestAddressedToRole]
+            : [
+                latestHandoffFrom(state, Role.Architect),
+                latestHandoffFrom(state, Role.DataEngineer),
+                latestHandoffFrom(state, Role.BackendCoder),
+                latestHandoffFrom(state, Role.FrontendCoder),
+                latestAddressedToRole,
+              ]
           : [latestHandoffFrom(state, Role.Specifier), latestAddressedToRole]
         : role === Role.UiDesigner
           ? [latestHandoffFrom(state, Role.Architect), latestHandoffFrom(state, Role.Qa)]
@@ -346,14 +355,19 @@ function interruptionSummary(context: AgentContext): string {
 }
 
 function localFeedbackSummary(context: AgentContext): string {
-  const feedback = context.state.localChecks
-    .filter((check) => check.role === context.role && !check.passed)
-    .slice(-1)
-    .map(
-      (check) =>
-        `${check.kind}: ${check.summary}\n${check.details.map((detail) => `- ${detail}`).join("\n")}`,
-    )
-    .join("\n");
+  const check = activeQualityFailure(context.state, context.role);
+
+  const feedback = check
+    ? [
+        `${check.kind}: ${check.summary}`,
+        ...(check.findings?.length
+          ? check.findings.map(
+              ({ code, owner, file, metric, actual, required, message }) =>
+                `- ${code}; owner=${owner}; file=${file ?? "none"}; metric=${metric ?? "none"}; actual=${actual ?? "none"}; required=${required ?? "none"}. ${message}`,
+            )
+          : check.details.map((detail) => `- ${detail}`)),
+      ].join("\n")
+    : "";
 
   if (!feedback) {
     return "none";
@@ -371,6 +385,22 @@ Use the failed paths and diagnostics to select one responsible role.
 Return a handoff with concrete failures. Set failureOwner and nextRole to that role.
 
 ${feedback}`;
+}
+
+function escalatedQualityBlocker(context: AgentContext): string | null {
+  if (context.role !== Role.Architect) {
+    return null;
+  }
+
+  const handoff = context.state.messages.findLast(
+    (message) =>
+      message.to === Role.Architect &&
+      message.turn !== null &&
+      [Role.DataEngineer, Role.BackendCoder, Role.FrontendCoder].includes(message.from as Role) &&
+      /architect must resolve this blocker/iu.test(message.turn.reason),
+  );
+
+  return handoff?.turn?.reason ?? null;
 }
 
 function deterministicVerificationSummary(context: AgentContext): string {
@@ -424,11 +454,40 @@ function architectureTask(context: AgentContext): string {
     return "not applicable";
   }
 
+  const previousReview = context.state.messages.findLast(
+    (message) =>
+      message.turn?.role === Role.Architect && message.turn.reviewStatus === "changes-requested",
+  );
+
+  const blocker = escalatedQualityBlocker(context);
+
+  if (blocker) {
+    return `escalated deterministic quality blocker
+- Resolve this blocker before you route another finding.
+- Do not mark the blocker as resolved without a passing deterministic check or a concrete correction.
+- Blocker: ${blocker}`;
+  }
+
   return context.state.architectureReviewStatus === "pending"
-    ? `implementation review
+    ? previousReview
+      ? `incremental implementation review
+- Verify each previous finding first.
+- Inspect the latest correction diff and its cited files.
+- Do not repeat a full repository review unless the correction changed architecture boundaries.
+- Approve QA or return only unresolved or new findings to one implementation failure owner.`
+      : `implementation review
 - Inspect the completed implementation against the approved specification and architecture plan.
 - Approve QA or return concrete findings to one implementation failure owner.`
     : "technical planning";
+}
+
+function recentChangedFiles(context: AgentContext): string {
+  const files = context.state.executions
+    .filter((execution) => execution.role !== context.role)
+    .slice(-3)
+    .flatMap((execution) => execution.changedFiles);
+
+  return [...new Set(files)].sort().join(", ") || "none";
 }
 
 export async function buildAgentPrompt(
@@ -445,8 +504,22 @@ export async function buildAgentPrompt(
     relevantHandoffs(context)
       .map((handoff) => describeHandoff(handoff, role))
       .join("\n\n") || "none";
+  const correctionHandoff = state.messages.findLast((message) => message.to === role);
+  const correctionHistory = correctionHandoff ? describeHandoff(correctionHandoff, role) : "none";
+  const deterministicCorrection = activeQualityFailure(state, role);
+  const correctionAssignment = deterministicCorrection
+    ? `Previous assignment context:
+${correctionHistory}
 
-  if (execution.routedCorrection || execution.consecutiveQualityFailures >= 2) {
+Active deterministic assignment:
+${localFeedbackSummary(context)}`
+    : `Active routed assignment:
+${correctionHistory}`;
+  const correctionPriorityRule = deterministicCorrection
+    ? "- Follow the active deterministic assignment. It supersedes conflicting previous assignment context."
+    : "- Follow the active routed assignment.";
+
+  if (execution.routedCorrection || execution.consecutiveQualityFailures >= 1) {
     return `You are the ${role} in a specialized web application development team.
 
 This is a focused correction assignment. Read only the files required by the current findings.
@@ -463,23 +536,23 @@ ${state.workspace}
 Deterministic workspace inventory:
 ${describeWorkspaceFacts(facts)}
 
+Recent deterministic changed files:
+${recentChangedFiles(context)}
+
 Your responsibility:
 ${roleInstructions}
 
 Required communication standard:
 ${communicationStandard}
 
-Role-relevant handoffs:
-${history}
+${correctionAssignment}
 
 Latest approved specification artifact:
 ${approvedArtifact(state)}
 
-Latest failed local check for this role:
-${localFeedbackSummary(context)}
-
 Rules:
 - Correct only the current findings.
+${correctionPriorityRule}
 - Read the approved specification only when a finding requires functional context.
 - Use workspace-relative paths for all file edits.
 - Do not run Git commands.
@@ -487,7 +560,16 @@ Rules:
 - Do not run full workspace format, lint, typecheck, test, coverage, build, or browser scripts.
 - Do not run the deterministic role check. The controller runs it after the handoff.
 - Do not start a local development server.
+- Run one inspection or check in each shell command.
+- Use a separate tool call for each format, test, typecheck, and lint command.
+- Never place another program name after a command's file arguments.
+- Inspect each command output before you report that the command passed.
 - Never claim a command passed unless you ran it and saw it pass.
+- Stop work immediately after the current findings pass focused checks.
+- Do not add optional cleanup, refactors, tests, or features after the findings pass.
+- Treat Bun coverage thresholds as per-file thresholds, not only aggregate thresholds.
+- Do not add a coverage ignore without a browser-only justification in the same comment.
+- Do not reduce or remove a configured coverage threshold during a correction.
 - The final response must match the supplied JSON schema.
 - decision=handoff requires a legal nextRole.
 `;
@@ -509,6 +591,9 @@ ${state.workspace}
 
 Deterministic workspace inventory:
 ${describeWorkspaceFacts(facts)}
+
+Recent deterministic changed files:
+${recentChangedFiles(context)}
 
 Deterministic workspace bootstrap:
 ${bootstrapSummary(state)}
@@ -552,10 +637,20 @@ Rules:
 - Do not run the deterministic role check. The controller runs it after a coder handoff.
 - Do not run coverage during a coder turn. The controller runs role-scoped coverage.
 - The controller checks only the code owned by this role after a coder turn.
+- Bun coverage thresholds apply to each measured file, not only to the aggregate result.
+- A source file with runtime code must appear in coverage or have a justified browser-only ignore.
+- A coverage ignore must include a browser-only justification in the same comment.
 - QA runs the full workspace scripts and assigns each failure to its responsible role.
 - Do not start a local development server. The controller runs browser tests outside the agent sandbox.
+- Run one inspection or check in each shell command.
+- Use a separate tool call for each format, test, typecheck, and lint command.
+- Never place another program name after a command's file arguments.
+- Inspect each command output before you report that the command passed.
+- A partial read is not proof for an unread file or unread command output.
+- Use exact paths from the deterministic inventory. Do not guess generated file names.
 - Inspect node_modules only when a focused compiler error requires exact dependency behavior.
 - The fixed product stack is TypeScript, Bun, tRPC, Zod, Drizzle ORM with bun:sqlite, React and Playwright.
+- Keep every dependency at one exact version. Do not use latest, caret, or tilde ranges.
 - Domain and application code lives under src/contexts; deployable applications live under src/apps/<application-name>/backend or frontend.
 - Treat prior summaries as context, but verify claims from files and commands.
 - After an interrupted attempt, inspect the current workspace and cited log before deciding what remains; partial edits may already exist.

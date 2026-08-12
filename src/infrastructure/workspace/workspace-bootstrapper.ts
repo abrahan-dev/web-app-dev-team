@@ -16,6 +16,7 @@ const markerRelativePath = ".web-app-dev-team/bootstrap.json";
 function validationCommands(plan: ChangePlan): string[][] {
   return [
     ["bun", "install"],
+    ...(plan.backendRequired ? [["bun", "run", "openapi:generate"]] : []),
     ...(plan.frontendRequired ? [["bunx", "playwright", "install", "chromium"]] : []),
     ["bun", "run", "format"],
     ["bun", "run", "format:check"],
@@ -104,14 +105,22 @@ async function readBootstrapMarker(path: string): Promise<BootstrapMarker | null
     changePlan?: unknown;
   };
 
-  if (marker.template !== "web-app" || marker.templateVersion !== webAppTemplateVersion) {
+  const complete = marker.status === "complete";
+  const supportedVersion =
+    marker.templateVersion === 1 || marker.templateVersion === 2 || marker.templateVersion === 3;
+
+  if (
+    marker.template !== "web-app" ||
+    !supportedVersion ||
+    (marker.templateVersion !== webAppTemplateVersion && !complete)
+  ) {
     throw new Error(
       `Workspace bootstrap marker ${markerRelativePath} names an unsupported template.`,
     );
   }
 
   return {
-    status: marker.status === "complete" ? "complete" : "in-progress",
+    status: complete ? "complete" : "in-progress",
     plan: changePlanSchema.parse(marker.changePlan),
   };
 }
@@ -122,6 +131,7 @@ function managedTopLevelEntries(template: Record<string, string>): Set<string> {
     "bun.lock",
     "bun.lockb",
     "node_modules",
+    "openapi.json",
   ]);
 }
 

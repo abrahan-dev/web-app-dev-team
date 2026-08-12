@@ -91,6 +91,18 @@ export function enrichWithObservedEvidence(
     return turn;
   }
 
+  const observedCommands = new Map(
+    observations.commands.map(({ command, exitCode }) => [command, exitCode]),
+  );
+
+  for (const evidence of turn.evidence) {
+    const claim = /^(.*): exit (\d+)$/u.exec(evidence);
+
+    if (claim && observedCommands.get(claim[1] ?? "") !== Number(claim[2])) {
+      throw new Error(`Agent evidence is not present in complete command telemetry: ${evidence}`);
+    }
+  }
+
   const changedFiles = normalizeChangedFiles(observations.changedFiles, workspace);
   const commandEvidence = observations.commands.map(
     ({ command, exitCode }) => `${command}: exit ${exitCode ?? "unknown"}`,

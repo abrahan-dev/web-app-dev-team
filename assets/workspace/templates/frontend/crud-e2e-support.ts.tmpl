@@ -1,0 +1,24 @@
+import { expect, type APIRequestContext, type Page } from "@playwright/test";
+
+export async function resetThroughTrpc(
+  request: APIRequestContext,
+  procedure: string,
+  input: unknown = null,
+): Promise<void> {
+  const response = await request.post(`/trpc/${procedure}`, {
+    data: { json: input },
+  });
+
+  expect(response.ok()).toBe(true);
+}
+
+export async function exerciseCrudControls(
+  page: Page,
+  labels: { create: string; edit: string; complete: string; remove: string },
+): Promise<void> {
+  await page.getByRole("button", { name: labels.create }).click();
+  await expect(page.getByRole("button", { name: labels.edit })).toBeVisible();
+  await page.getByRole("button", { name: labels.edit }).click();
+  await page.getByRole("button", { name: labels.complete }).click();
+  await page.getByRole("button", { name: labels.remove }).click();
+}

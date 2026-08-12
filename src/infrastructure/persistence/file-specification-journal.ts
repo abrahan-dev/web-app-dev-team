@@ -6,6 +6,7 @@ import {
   type PublishedSpecification,
   type SpecifierTurn,
 } from "../../domain/schemas.ts";
+import { formatGherkin } from "../../domain/specification/gherkin-formatter.ts";
 import type {
   PublishSpecificationRequest,
   SpecificationJournal,
@@ -84,7 +85,7 @@ function renderSpecification(
     ...commentBlock("Assumptions", specification.assumptions),
     ...commentBlock("Out of scope", specification.outOfScope),
     "",
-    specification.specification.trim(),
+    formatGherkin(specification.specification),
     "",
   ].join("\n");
 }

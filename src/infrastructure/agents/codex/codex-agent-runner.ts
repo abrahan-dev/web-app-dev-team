@@ -124,7 +124,7 @@ async function selectSession(context: AgentContext): Promise<{
     sessionId:
       savedId &&
       !assignmentStartedAfterLastExecution(context) &&
-      consecutiveQualityFailures(context) < 2
+      consecutiveQualityFailures(context) < 1
         ? savedId
         : null,
   };

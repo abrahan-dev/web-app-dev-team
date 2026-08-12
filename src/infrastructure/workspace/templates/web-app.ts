@@ -4,7 +4,7 @@ import { workspaceTemplatesRoot } from "../../../package-paths.ts";
 import { stackCatalog } from "../../configuration/stack-catalog.ts";
 import type { ChangePlan } from "../../../domain/schemas.ts";
 
-export const webAppTemplateVersion = 1 as const;
+export const webAppTemplateVersion = 3 as const;
 const templateRoot = workspaceTemplatesRoot;
 
 function template(path: string): string {
@@ -42,11 +42,16 @@ function packageJson(plan: ChangePlan): string {
 
   if (plan.backendRequired) {
     Object.assign(dependencies, {
-      "@trpc/openapi": catalogDependencies["@trpc/openapi"],
       "@trpc/server": catalogDependencies["@trpc/server"],
+      "swagger-ui-dist": catalogDependencies["swagger-ui-dist"],
+    });
+    Object.assign(developmentDependencies, {
+      "@hey-api/openapi-ts": catalogDevelopmentDependencies["@hey-api/openapi-ts"],
+      "@trpc/openapi": catalogDevelopmentDependencies["@trpc/openapi"],
     });
     scripts["dev:backend"] = `bun --watch src/apps/${plan.applicationName}/backend/server.ts`;
-    scripts["openapi:generate"] = "trpc-openapi generate";
+    scripts["openapi:generate"] =
+      `trpc-openapi src/apps/${plan.applicationName}/backend/router.ts --export AppRouter --output openapi.json --title "${plan.applicationName} API" --version 0.1.0 --server-url /trpc`;
   }
 
   if (plan.dataRequired) {
@@ -73,11 +78,16 @@ function packageJson(plan: ChangePlan): string {
       "@types/react": catalogDevelopmentDependencies["@types/react"],
       "@types/react-dom": catalogDevelopmentDependencies["@types/react-dom"],
       "@vitejs/plugin-react": catalogDevelopmentDependencies["@vitejs/plugin-react"],
+      "happy-dom": catalogDevelopmentDependencies["happy-dom"],
       tailwindcss: catalogDevelopmentDependencies.tailwindcss,
       vite: catalogDevelopmentDependencies.vite,
     });
     scripts["dev:frontend"] = "vite";
     scripts["test:e2e"] = "playwright test";
+
+    if (plan.backendRequired) {
+      scripts["dev:e2e:backend"] = "bun run scripts/start-playwright-backend.ts";
+    }
   }
 
   return `${JSON.stringify(
@@ -101,6 +111,7 @@ function backendFiles(applicationName: string): Record<string, string> {
   const variables = { applicationName };
 
   return {
+    [`${root}/documentation.ts`]: template("backend/documentation.ts.tmpl"),
     [`${root}/trpc.ts`]: template("backend/trpc.ts.tmpl"),
     [`${root}/router.ts`]: template("backend/router.ts.tmpl"),
     [`${root}/server.ts`]: template("backend/server.ts.tmpl"),
@@ -111,7 +122,7 @@ function backendFiles(applicationName: string): Record<string, string> {
   };
 }
 
-function frontendFiles(applicationName: string): Record<string, string> {
+function frontendFiles(applicationName: string, backendRequired: boolean): Record<string, string> {
   const root = `src/apps/${applicationName}/frontend`;
   const variables = { applicationName };
 
@@ -120,22 +131,43 @@ function frontendFiles(applicationName: string): Record<string, string> {
     [`${root}/app.tsx`]: renderTemplate("frontend/app.tsx.tmpl", variables),
     [`${root}/main.tsx`]: template("frontend/main.tsx.tmpl"),
     [`${root}/styles.css`]: template("frontend/styles.css.tmpl"),
+    [`${root}/ui-rules.ts`]: template("frontend/ui-rules.ts.tmpl"),
     [`${root}/env.d.ts`]: template("frontend/env.d.ts.tmpl"),
     [`test/apps/${applicationName}/frontend/app.test.tsx`]: renderTemplate(
       "frontend/app.test.tsx.tmpl",
       variables,
     ),
-    "playwright.config.ts": template("frontend/playwright.config.ts.tmpl"),
+    [`test/apps/${applicationName}/frontend/styles.test.ts`]: renderTemplate(
+      "frontend/styles.test.ts.tmpl",
+      variables,
+    ),
+    [`test/apps/${applicationName}/frontend/ui-rules.test.ts`]: renderTemplate(
+      "frontend/ui-rules.test.ts.tmpl",
+      variables,
+    ),
+    "test/setup.ts": template("frontend/test-setup.ts.tmpl"),
+    "playwright.config.ts": renderTemplate("frontend/playwright.config.ts.tmpl", {
+      backendServer: backendRequired ? template("frontend/playwright-backend-server.ts.tmpl") : "",
+    }),
+    ...(backendRequired
+      ? {
+          "scripts/start-playwright-backend.ts": template(
+            "frontend/start-playwright-backend.ts.tmpl",
+          ),
+        }
+      : {}),
     [`test/e2e/${applicationName}-smoke.e2e.ts`]: renderTemplate(
       "frontend/smoke.e2e.ts.tmpl",
       variables,
     ),
+    "test/e2e/support/crud.ts": template("frontend/crud-e2e-support.ts.tmpl"),
     "vite.config.ts": template("frontend/vite.config.ts.tmpl"),
   };
 }
 
 function continuousIntegrationWorkflow(plan: ChangePlan): string {
   const content = renderTemplate("ci/workflow.yml.tmpl", {
+    backendSteps: plan.backendRequired ? template("ci/backend-steps.yml.tmpl") : "",
     bunVersion: stackCatalog.runtime.bun,
     frontendSteps: plan.frontendRequired ? template("ci/frontend-steps.yml.tmpl") : "",
   });
@@ -148,7 +180,12 @@ export function webAppTemplate(plan: ChangePlan): Record<string, string> {
     ".github/workflows/ci.yml": continuousIntegrationWorkflow(plan),
     ".data/.gitkeep": "",
     ".gitignore": template("base/gitignore.tmpl"),
-    "bunfig.toml": template("base/bunfig.toml.tmpl"),
+    "bunfig.toml": renderTemplate("base/bunfig.toml.tmpl", {
+      coveragePreloadIgnore: plan.frontendRequired
+        ? '  # Browser-only global setup is not application logic.\n  "test/setup.ts",'
+        : "",
+      testPreload: plan.frontendRequired ? 'preload = ["./test/setup.ts"]' : "",
+    }),
     "package.json": packageJson(plan),
     "test/.gitkeep": "",
     "tsconfig.json": template("base/tsconfig.json.tmpl"),
@@ -165,7 +202,7 @@ export function webAppTemplate(plan: ChangePlan): Record<string, string> {
   }
 
   if (plan.frontendRequired) {
-    Object.assign(files, frontendFiles(plan.applicationName));
+    Object.assign(files, frontendFiles(plan.applicationName, plan.backendRequired));
   }
 
   if (plan.dataRequired) {

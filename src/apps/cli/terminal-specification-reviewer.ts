@@ -7,6 +7,7 @@ import type {
 } from "../../application/ports/specification-reviewer.ts";
 import type { CommandRunner } from "../../infrastructure/terminal/tmux.ts";
 import { turnLimitLabel } from "../../domain/turn-limit.ts";
+import { formatGherkin } from "../../domain/specification/gherkin-formatter.ts";
 
 type Ask = (prompt: string) => Promise<string>;
 
@@ -24,7 +25,7 @@ function renderReview({ specification, state }: SpecificationReviewContext): voi
   );
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(`\nFeature: ${specification.featureId}`);
-  console.log(`\n${specification.specification}`);
+  console.log(`\n${formatGherkin(specification.specification)}`);
   printList("Assumptions", specification.assumptions);
   printList("Out of scope", specification.outOfScope);
   printList("Acceptance evidence", specification.evidence);

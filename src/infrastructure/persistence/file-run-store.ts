@@ -54,6 +54,7 @@ export async function createRunState(options: {
     specificationReviews: [],
     finalSummary: null,
     failure: null,
+    cancellation: null,
     mode: "delivery",
     targetSpecification: null,
     interruptions: [],

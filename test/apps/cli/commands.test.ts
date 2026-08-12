@@ -3,6 +3,7 @@ import { mkdir, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   CliArguments,
+  cancelRun,
   ensureWorkspaceDirectory,
   helpText,
   packageVersion,
@@ -17,6 +18,11 @@ import { Role } from "../../../src/domain/roles.ts";
 import { expectedPackageVersion } from "../../support/package-metadata.ts";
 import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
 import { refreshWorkspaceFacts } from "../../../src/infrastructure/workspace/workspace-inspector.ts";
+import {
+  createRunState,
+  loadRunState,
+} from "../../../src/infrastructure/persistence/file-run-store.ts";
+import { RunStatus } from "../../../src/domain/workflow-values.ts";
 
 const originalMaxTurns = process.env.WEB_APP_DEV_TEAM_MAX_TURNS;
 const temporary = new TemporaryWorkspaceManager();
@@ -48,6 +54,26 @@ describe("CLI arguments", () => {
     await writeFile(workspace, "not a directory");
 
     await expect(ensureWorkspaceDirectory(workspace)).rejects.toThrow();
+  });
+
+  test("records a graceful operator cancellation", async () => {
+    const workspace = await temporary.create("web-app-dev-team-cancel-");
+    const created = await createRunState({
+      prompt: "Build it.",
+      workspace,
+      maxTurns: 12,
+    });
+
+    const cancelled = await cancelRun(created.runDirectory, "SIGINT");
+
+    expect(cancelled.status).toBe(RunStatus.Cancelled);
+    expect(cancelled.cancellation).toMatchObject({
+      requestedBy: "operator",
+      signal: "SIGINT",
+      activeRole: Role.Specifier,
+      lastCompletedTurn: 0,
+    });
+    expect((await loadRunState(created.runDirectory)).status).toBe(RunStatus.Cancelled);
   });
 
   test("runs the hidden deterministic role check", async () => {

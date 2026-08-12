@@ -73,6 +73,7 @@ describe("local quality gate commands", () => {
   test("runs only recognized scripts in deterministic order", async () => {
     const root = await workspace({
       build: "bun -e \"console.log('build should not run')\"",
+      "openapi:generate": "bun -e \"console.log('openapi ok')\"",
       "test:e2e": "bun -e \"console.log('e2e ok')\"",
       "test:coverage": "bun -e \"console.log('coverage ok')\"",
       lint: "bun -e \"console.log('lint ok')\"",
@@ -91,16 +92,18 @@ describe("local quality gate commands", () => {
 
     expect(result.passed).toBe(true);
     expect(result.commands.map(({ command }) => command)).toEqual([
+      "bun run openapi:generate",
       "bun run lint",
       "bun run typecheck",
       "bun run test:e2e",
       "bun run test:coverage",
     ]);
-    expect(result.commands.map(({ exitCode }) => exitCode)).toEqual([0, 0, 0, 0]);
-    expect(result.commands[0]?.output).toContain("lint ok");
-    expect(result.commands[1]?.output).toContain("types ok");
-    expect(result.commands[2]?.output).toContain("e2e ok");
-    expect(result.commands[3]?.output).toContain("coverage ok");
+    expect(result.commands.map(({ exitCode }) => exitCode)).toEqual([0, 0, 0, 0, 0]);
+    expect(result.commands[0]?.output).toContain("openapi ok");
+    expect(result.commands[1]?.output).toContain("lint ok");
+    expect(result.commands[2]?.output).toContain("types ok");
+    expect(result.commands[3]?.output).toContain("e2e ok");
+    expect(result.commands[4]?.output).toContain("coverage ok");
   });
 
   test("keeps browser scripts for the final gate only", async () => {
@@ -267,7 +270,18 @@ describe("local quality gate commands", () => {
 
     expect(result.passed).toBe(false);
     expect(result.commands).toMatchObject([{ command: "bun run test:coverage", exitCode: 1 }]);
-    expect(result.details[0]).toContain("bun run test:coverage exited 1");
+    expect(result.details.some((detail) => detail.includes("bun run test:coverage exited 1"))).toBe(
+      true,
+    );
+    expect(result.findings).toContainEqual({
+      code: "coverage-below-threshold",
+      owner: Role.BackendCoder,
+      file: "src/classify.ts",
+      metric: "functions",
+      actual: 50,
+      required: 100,
+      message: "src/classify.ts has 50% functions coverage. The required value is 100%.",
+    });
   });
 
   test("records a failing script and its diagnostic output", async () => {
@@ -298,5 +312,103 @@ describe("local quality gate commands", () => {
 
     expect(result.exitCode).toBe(127);
     expect(result.output.length).toBeGreaterThan(0);
+  });
+
+  test("rejects package ranges in a generated workspace", async () => {
+    const root = await workspace({});
+    await writeFile(
+      resolve(root, "package.json"),
+      JSON.stringify({ dependencies: { zod: "^4.4.3" } }),
+    );
+
+    const result = await runQualityGate({
+      workspace: root,
+      facts: await inspectWorkspace(root),
+      changedFiles: [],
+      turn: 1,
+      sequence: 1,
+      role: Role.BackendCoder,
+      requireExactDependencies: true,
+    });
+
+    expect(result.details).toContain(
+      "package.json must pin zod to one exact semantic version; received ^4.4.3.",
+    );
+  });
+
+  test("detects runtime files missing from a coverage report", async () => {
+    const root = await workspace({
+      "test:coverage":
+        "bun -e 'console.log(\"src/contexts/orders/domain/covered.ts | 100 | 100 | 100\")'",
+    });
+    const directory = resolve(root, "src/contexts/orders/domain");
+    await mkdir(directory, { recursive: true });
+    await writeFile(resolve(directory, "covered.ts"), "export const covered = () => true;\n");
+    await writeFile(resolve(directory, "missing.ts"), "export const missing = () => true;\n");
+
+    const result = await runQualityGate({
+      workspace: root,
+      facts: await inspectWorkspace(root),
+      changedFiles: [],
+      turn: 1,
+      sequence: 1,
+      role: Role.BackendCoder,
+      runScripts: false,
+      runCoverage: true,
+    });
+
+    expect(result.details).toContain(
+      "src/contexts/orders/domain/missing.ts contains runtime code but does not appear in the coverage report.",
+    );
+  });
+
+  test("requires a browser-only reason for coverage ignores", async () => {
+    const root = await workspace({});
+    const path = resolve(root, "src/apps/example/frontend/focus.ts");
+    await mkdir(resolve(path, ".."), { recursive: true });
+    await writeFile(path, "/* istanbul ignore next */\nexport const focus = () => true;\n");
+
+    const result = await runQualityGate({
+      workspace: root,
+      facts: await inspectWorkspace(root),
+      changedFiles: [path],
+      turn: 1,
+      sequence: 1,
+      role: Role.FrontendCoder,
+    });
+
+    expect(result.details).toContain(
+      "src/apps/example/frontend/focus.ts:1 coverage ignore needs a browser-only justification.",
+    );
+  });
+
+  test("rejects a coverage threshold reduction", async () => {
+    const root = await workspace({});
+    await writeFile(
+      resolve(root, "bunfig.toml"),
+      "[test]\ncoverageThreshold = { lines = 0.9, functions = 0.9, statements = 0.9 }\n",
+    );
+    const facts = await inspectWorkspace(root);
+    await writeFile(
+      resolve(root, "bunfig.toml"),
+      "[test]\ncoverageThreshold = { lines = 0.8, functions = 0.8, statements = 0.8 }\n",
+    );
+
+    const result = await runQualityGate({
+      workspace: root,
+      facts,
+      changedFiles: ["bunfig.toml"],
+      turn: 1,
+      sequence: 1,
+      role: Role.BackendCoder,
+    });
+
+    expect(result.passed).toBe(false);
+    expect(
+      result.findings?.filter(({ code }) => code === "coverage-threshold-reduced"),
+    ).toHaveLength(3);
+    expect(result.details).toContain(
+      "bunfig.toml reduced the functions coverage threshold from 90% to 80%.",
+    );
   });
 });

@@ -51,7 +51,7 @@ describe("deterministic workspace bootstrapper", () => {
     expect(result).toMatchObject({
       status: "created",
       template: "web-app",
-      templateVersion: 1,
+      templateVersion: 3,
       applicationName: "purchase-orders",
       contexts: ["purchasing", "identity"],
       surfaces: ["backend", "frontend"],
@@ -59,6 +59,7 @@ describe("deterministic workspace bootstrapper", () => {
     });
     expect(result.commands.map(({ command }) => command)).toEqual([
       "bun install",
+      "bun run openapi:generate",
       "bunx playwright install chromium",
       "bun run format",
       "bun run format:check",
@@ -83,10 +84,15 @@ describe("deterministic workspace bootstrapper", () => {
     expect(result.createdFiles).toContain("bun.lock");
     expect(JSON.parse(await readFile(resolve(root, "package.json"), "utf8"))).toMatchObject({
       dependencies: {
-        "@trpc/openapi": "11.18.0-alpha",
         "@trpc/server": "11.18.0",
         "drizzle-orm": "0.45.2",
         react: "19.2.8",
+        "swagger-ui-dist": "5.32.13",
+      },
+      devDependencies: {
+        "@hey-api/openapi-ts": "0.94.5",
+        "@trpc/openapi": "11.18.0-alpha",
+        typescript: "6.0.3",
       },
       packageManager: "bun@1.3.10",
     });
@@ -94,6 +100,7 @@ describe("deterministic workspace bootstrapper", () => {
     expect(workflow).toContain("permissions:\n  contents: read");
     expect(workflow).toContain("bun install --frozen-lockfile");
     expect(workflow).toContain("bun run format:check");
+    expect(workflow).toContain("bun run openapi:generate");
     expect(workflow).toContain("bun run lint");
     expect(workflow).toContain("bun run typecheck");
     expect(workflow).toContain("bun run test");
@@ -151,7 +158,7 @@ describe("deterministic workspace bootstrapper", () => {
 
     expect(resumed.status).toBe("created");
     expect(resumed.createdFiles).toEqual([]);
-    expect(resumed.commands).toHaveLength(8);
+    expect(resumed.commands).toHaveLength(9);
   });
 
   test("omits frontend and persistence scaffolding for a backend-only plan", async () => {

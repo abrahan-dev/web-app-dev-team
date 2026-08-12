@@ -6,7 +6,11 @@ import { roleSchema, type LocalCheck, type TokenTotals } from "../../domain/sche
 import { createRepositoryWorkflow } from "../../infrastructure/git/config.ts";
 import { runDevelopmentTeam } from "../../application/development/run-development-team.ts";
 import { developmentServices } from "../../infrastructure/development-services.ts";
-import { createRunState, loadRunState } from "../../infrastructure/persistence/file-run-store.ts";
+import {
+  createRunState,
+  loadRunState,
+  saveRunState,
+} from "../../infrastructure/persistence/file-run-store.ts";
 import { AutomaticSpecificationReviewer } from "../../application/ports/specification-reviewer.ts";
 import {
   createRestitution,
@@ -140,7 +144,7 @@ export function tokenSummary(totals: TokenTotals): string {
   const count = (value: number): string => new Intl.NumberFormat("en-US").format(value);
 
   return [
-    `team ${count(totals.team.totalTokens)}`,
+    `team ${count(totals.team.totalTokens)} (new input ${count(Math.max(0, totals.team.inputTokens - totals.team.cachedInputTokens))}, cached ${count(totals.team.cachedInputTokens)}, output ${count(totals.team.outputTokens)})`,
     ...Object.entries(totals.byRole).map(([role, usage]) => `${role} ${count(usage.totalTokens)}`),
   ].join(" · ");
 }
@@ -166,7 +170,56 @@ function printGitSummary(
   }
 }
 
+export async function cancelRun(
+  runDirectory: string,
+  signal: "SIGINT" | "SIGTERM" | "SIGHUP",
+): Promise<Awaited<ReturnType<typeof loadRunState>>> {
+  const state = await loadRunState(runDirectory);
+
+  if (state.status !== RunStatus.Running) {
+    return state;
+  }
+
+  const activeRole = state.currentRole;
+  const activeExecutionStartedAt = state.activeExecutionStartedAt;
+  state.status = RunStatus.Cancelled;
+  state.activeExecutionStartedAt = null;
+  state.failure = null;
+  state.cancellation = {
+    cancelledAt: new Date().toISOString(),
+    requestedBy: "operator",
+    signal,
+    activeRole,
+    activeExecutionStartedAt,
+    lastCompletedTurn: state.turns,
+  };
+  await saveRunState(runDirectory, state);
+  await developmentServices.operatorLog.runCancelled(runDirectory, state);
+
+  return state;
+}
+
 async function executeRun(runDirectory: string, demo = false, tmuxSession?: string): Promise<void> {
+  let cancelling = false;
+
+  const cancel = async (signal: "SIGINT" | "SIGTERM" | "SIGHUP"): Promise<void> => {
+    if (cancelling) {
+      return;
+    }
+
+    cancelling = true;
+
+    await cancelRun(runDirectory, signal);
+
+    process.exit(signal === "SIGINT" ? 130 : signal === "SIGHUP" ? 129 : 143);
+  };
+
+  const onSigint = (): void => void cancel("SIGINT");
+  const onSigterm = (): void => void cancel("SIGTERM");
+  const onSighup = (): void => void cancel("SIGHUP");
+  process.once("SIGINT", onSigint);
+  process.once("SIGTERM", onSigterm);
+  process.once("SIGHUP", onSighup);
   const commandRunner = new BunCommandRunner();
   const repositoryWorkflow = createRepositoryWorkflow();
   const result = await runDevelopmentTeam(
@@ -179,7 +232,11 @@ async function executeRun(runDirectory: string, demo = false, tmuxSession?: stri
     developmentServices,
     new DeterministicWorkspaceBootstrapper(),
     demo ? undefined : repositoryWorkflow,
-  );
+  ).finally(() => {
+    process.off("SIGINT", onSigint);
+    process.off("SIGTERM", onSigterm);
+    process.off("SIGHUP", onSighup);
+  });
   console.log(`\n✓ Development team ${result.status} after ${result.turns} turns.`);
   console.log(result.finalSummary ?? result.failure ?? "No summary available.");
   console.log(`Tokens: ${tokenSummary(result.tokenTotals)}`);

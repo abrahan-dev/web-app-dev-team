@@ -1,0 +1,6 @@
+    {
+      command: "bun run dev:e2e:backend",
+      url: "http://127.0.0.1:3000/health",
+      reuseExistingServer: false,
+      env: { WEB_APP_DATABASE_PATH: ".data/playwright.sqlite" },
+    },

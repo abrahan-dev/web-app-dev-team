@@ -34,6 +34,9 @@ The `workspace/stack.json` file contains the Bun version and package versions
 for new applications. Change a version to update the stack for future
 application bootstraps.
 
+Use exact semantic versions. The loader rejects ranges. The API packages must
+match the tested compatibility combination in the application code.
+
 The application defines the permitted package names in `src`. A new package,
 a removed package, or a new package group requires a change in `src`.
 
@@ -46,10 +49,17 @@ The `base/bunfig.toml.tmpl` file defines the generated coverage limits. The
 controller runs the generated `test:coverage` script after QA requests
 completion.
 
+The frontend templates provide Happy DOM setup, Testing Library tests, and a
+WCAG AA palette test. Playwright uses an isolated database. Its support file
+provides CRUD controls and tRPC cleanup helpers.
+
 The data templates provide database opening, migration execution, exports, and
 a focused database test. Keep these templates independent of product rules.
 The bootstrap creates these files only for the architect plan's
 `persistenceContexts` values.
+
+The database opener reads `WEB_APP_DATABASE_PATH`. Playwright uses this value
+to keep browser test data separate from application data.
 
 Keep the current placeholders unless you also change the template renderer.
 The application defines each output path and each template selection rule in
@@ -62,6 +72,10 @@ The bootstrap runs the generated `format` script before its formatter check.
 Keep generated files valid so the formatter can update them automatically.
 The generated `db:generate` script formats Drizzle JSON metadata. It does not
 format generated SQL migrations.
+
+Backend templates serve tRPC at `/trpc`. They generate OpenAPI 3.1.1 from the
+exported `AppRouter` type. They serve the document at `/openapi.json`. They
+serve local Swagger UI assets at `/docs`. Do not add a second REST transport.
 
 ## Pull request template
 

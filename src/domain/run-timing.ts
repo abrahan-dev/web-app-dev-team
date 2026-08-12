@@ -28,6 +28,10 @@ function runEnd(state: RunState, now: Date): string | Date {
     return now;
   }
 
+  if (state.status === RunStatus.Cancelled && state.cancellation) {
+    return state.cancellation.cancelledAt;
+  }
+
   return (
     state.interruptions.at(-1)?.createdAt ??
     state.messages.at(-1)?.createdAt ??
@@ -46,7 +50,12 @@ export function roleElapsedMilliseconds(state: RunState, role: Role, now = new D
   const completed = state.executions
     .filter((execution) => execution.role === role)
     .reduce((total, execution) => total + duration(execution.startedAt, execution.completedAt), 0);
-  const active = state.currentRole === role ? duration(state.activeExecutionStartedAt, now) : 0;
+  const active =
+    state.status === RunStatus.Cancelled && state.cancellation?.activeRole === role
+      ? duration(state.cancellation.activeExecutionStartedAt, state.cancellation.cancelledAt)
+      : state.currentRole === role
+        ? duration(state.activeExecutionStartedAt, now)
+        : 0;
 
   return completed + active;
 }

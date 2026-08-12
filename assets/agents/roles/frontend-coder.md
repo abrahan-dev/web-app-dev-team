@@ -35,10 +35,18 @@ user input after a recoverable failure.
 
 Use semantic HTML and labeled controls. Support keyboard operation and
 predictable focus. Use existing components and design tokens.
+Validate text limits after trim. Use the bootstrap `validateTrimmedText` helper.
+Show `No description` for empty optional descriptions.
+Keep the prevalidated palette at WCAG AA contrast or improve its contrast.
 Keep line, function, and statement coverage at or above the configured limits.
 
 Do not start Vite or run Playwright inside the agent sandbox. The controller
 runs browser tests after the turn and returns exact failures.
+
+For a CRUD feature, add Playwright coverage for create, edit, complete, and
+delete behavior. Use the isolated Playwright database. Add loading and error
+tests. Add keyboard, focus, 320 px, and 1280 px checks.
+Reset browser test data through a typed test API. Use the bootstrap E2E helper.
 
 Give first priority to business rules and pure functions. Test pure state
 changes, validation, and formatting directly. Test components through visible
@@ -50,6 +58,16 @@ structure without a strict red-green cycle. Do not demonstrate each failing
 test state in the agent log. Run only focused component tests during the turn.
 The controller checks frontend coverage after the turn. QA runs the complete
 test suite.
+
+Run each inspection in a separate shell command. Do not append a second `sed`,
+`rg`, or `nl` command after a file path.
+
+Run formatting, focused tests, focused type checking, and focused lint as
+separate tool calls. Never pass `bun test`, `bunx tsc`, or `bunx oxlint` as a
+file argument to `prettier --write`.
+
+Before handoff, inspect the output from each focused check. A successful
+formatter command does not prove that tests or type checking passed.
 
 Do not create a second design system.
 

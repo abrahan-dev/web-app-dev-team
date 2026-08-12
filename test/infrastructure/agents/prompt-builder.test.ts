@@ -20,7 +20,10 @@ import {
   saveRunState,
 } from "../../../src/infrastructure/persistence/file-run-store.ts";
 import { TemporaryWorkspaceManager } from "../../support/temporary-workspaces.ts";
-import { publishedSpecificationFactory } from "../../support/domain-factories.ts";
+import {
+  backendHandoffFactory,
+  publishedSpecificationFactory,
+} from "../../support/domain-factories.ts";
 
 const temporary = new TemporaryWorkspaceManager();
 
@@ -47,7 +50,7 @@ describe("role instructions", () => {
     expect(instructions).toContain("Domain code never imports tRPC");
     expect(instructions).toContain("domain/repositories");
     expect(instructions).toContain("apps/<application-name>");
-    expect(instructions).toContain("tRPC with the Fetch API");
+    expect(instructions).toContain("tRPC Fetch adapter");
     expect(instructions).toContain("Drizzle ORM");
   });
 
@@ -232,6 +235,11 @@ test("projects role-specific context and caches the workspace inventory", async 
   expect(prompt).not.toContain("role-check --workspace");
   expect(prompt).toContain("Do not run full workspace format, lint, typecheck, test");
   expect(prompt).toContain("Do not start a local development server");
+  expect(prompt).toContain("Run one inspection or check in each shell command");
+  expect(prompt).toContain(
+    "Use a separate tool call for each format, test, typecheck, and lint command",
+  );
+  expect(prompt).toContain("Never place another program name after a command's file arguments");
   expect(prompt).toContain("Browser verification passed");
   expect(prompt).toContain("bun run test:e2e: exit 0");
   expect(prompt).toContain("LATEST_QA_FEEDBACK");
@@ -251,7 +259,8 @@ test("projects role-specific context and caches the workspace inventory", async 
 
   expect(architectPrompt).toContain("Resolved stack catalog for new projects:");
   expect(architectPrompt).toContain("- bun: 1.3.10");
-  expect(architectPrompt).toContain("- typescript: 7.0.2");
+  expect(architectPrompt).toContain("- typescript: 6.0.3");
+  expect(architectPrompt).toContain("- @hey-api/openapi-ts: 0.94.5");
   expect(architectPrompt).toContain(
     "For an existing project, use its package.json and lockfile versions.",
   );
@@ -293,6 +302,7 @@ test("projects role-specific context and caches the workspace inventory", async 
   expect(frontendPrompt).toContain("Design:\nUse a checkout aggregate.");
   expect(frontendPrompt).toContain("API contract: checkout.submit mutation");
   expect(frontendPrompt).not.toContain("Domain model: Checkout aggregate");
+  expect(frontendPrompt).toContain("Never pass `bun test`, `bunx tsc`, or `bunx oxlint`");
 
   created.state.architectureReviewStatus = "pending";
   const reviewPrompt = await buildAgentPrompt({
@@ -451,6 +461,29 @@ test("builds a compact prompt for a routed correction in a fresh session", async
       reason: "Correct the generated metadata.",
     },
   });
+  created.state.localChecks.push({
+    sequence: 1,
+    turn: 1,
+    role: Role.DataEngineer,
+    kind: "quality-gate",
+    createdAt: "2026-08-11T10:03:00.000Z",
+    passed: false,
+    summary: "Coverage failed.",
+    details: ["raw output"],
+    commands: [{ command: "bun run test:coverage", exitCode: 1, output: "variable timing" }],
+    findings: [
+      {
+        code: "coverage-below-threshold",
+        owner: Role.DataEngineer,
+        file: "src/contexts/accounts/infrastructure/persistence/database.ts",
+        metric: "functions",
+        actual: 75,
+        required: 80,
+        message:
+          "src/contexts/accounts/infrastructure/persistence/database.ts has 75% functions coverage. The required value is 80%.",
+      },
+    ],
+  });
   const context = {
     role: Role.DataEngineer,
     state: created.state,
@@ -466,7 +499,92 @@ test("builds a compact prompt for a routed correction in a fresh session", async
   });
   expect(prompt).toContain("focused correction assignment");
   expect(prompt).toContain("Migration metadata needs formatting");
+  expect(prompt).toContain("Previous assignment context:");
+  expect(prompt).toContain("Active deterministic assignment:");
+  expect(prompt).toContain("actual=75; required=80");
+  expect(prompt).toContain("It supersedes conflicting previous assignment context");
+  expect(prompt).toContain("Do not reduce or remove a configured coverage threshold");
   expect(prompt).toContain("Correct only the current findings");
+  expect(prompt).toContain("Run one inspection or check in each shell command");
+  expect(prompt).toContain(
+    "Use a separate tool call for each format, test, typecheck, and lint command",
+  );
   expect(prompt).not.toContain("Deterministic workspace bootstrap:");
   expect(prompt).not.toContain("Latest passed deterministic verification:");
+
+  created.state.localChecks.push({
+    ...created.state.localChecks[0]!,
+    sequence: 2,
+    turn: 2,
+    createdAt: "2026-08-11T10:04:00.000Z",
+    passed: true,
+    summary: "Coverage passed.",
+    details: [],
+    findings: [],
+    commands: [{ command: "bun run test:coverage", exitCode: 0, output: "passed" }],
+  });
+  const firstCorrection = created.state.messages.at(-1);
+
+  if (!firstCorrection?.turn || firstCorrection.turn.role !== Role.Qa) {
+    throw new Error("The QA correction handoff is missing.");
+  }
+
+  created.state.messages.push({
+    ...firstCorrection,
+    id: "qa-current-correction",
+    sequence: 2,
+    createdAt: "2026-08-11T10:05:00.000Z",
+    turn: {
+      ...firstCorrection.turn,
+      summary: "Add the current migration assertion.",
+      reason: "The new routed finding is active.",
+    },
+  });
+  const routedPrompt = await buildAgentPrompt(context, roleExecutionMetadata(context, false));
+
+  expect(routedPrompt).toContain("Active routed assignment:");
+  expect(routedPrompt).toContain("Add the current migration assertion");
+  expect(routedPrompt).not.toContain("actual=75; required=80");
+  expect(routedPrompt).not.toContain("Active deterministic assignment:");
+});
+
+test("makes an escalated deterministic blocker authoritative for the architect", async () => {
+  const root = await temporary.create("web-app-dev-team-architect-blocker-");
+  const created = await createRunState({
+    prompt: "Create a login page",
+    workspace: root,
+    runsRoot: root,
+    maxTurns: 20,
+  });
+  const backend = backendHandoffFactory();
+
+  if (backend.role !== Role.BackendCoder) {
+    throw new Error("The backend factory returned an invalid role.");
+  }
+
+  created.state.currentRole = Role.Architect;
+  created.state.architectureReviewStatus = "pending";
+  created.state.messages.push({
+    id: "coverage-blocker",
+    sequence: 1,
+    from: Role.BackendCoder,
+    to: Role.Architect,
+    createdAt: "2026-08-11T10:03:00.000Z",
+    turn: {
+      ...backend,
+      nextRole: Role.Architect,
+      reason:
+        "The same local quality failure occurred 3 times without file changes. The architect must resolve this blocker.",
+    },
+  });
+
+  const prompt = await buildAgentPrompt({
+    role: Role.Architect,
+    state: created.state,
+    runDirectory: created.runDirectory,
+  });
+
+  expect(prompt).toContain("Architecture task:\nescalated deterministic quality blocker");
+  expect(prompt).toContain("Resolve this blocker before you route another finding");
+  expect(prompt).toContain("without a passing deterministic check or a concrete correction");
 });

@@ -1,0 +1,15 @@
+import { rm } from "node:fs/promises";
+
+const databasePath = ".data/playwright.sqlite";
+await rm(databasePath, { force: true });
+await rm(`${databasePath}-shm`, { force: true });
+await rm(`${databasePath}-wal`, { force: true });
+
+const child = Bun.spawn(["bun", "run", "dev:backend"], {
+  env: { ...process.env, WEB_APP_DATABASE_PATH: databasePath },
+  stdin: "inherit",
+  stdout: "inherit",
+  stderr: "inherit",
+});
+
+process.exit(await child.exited);

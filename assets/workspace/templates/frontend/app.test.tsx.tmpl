@@ -1,10 +1,41 @@
-import { expect, test } from "bun:test";
-import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, expect, mock, test } from "bun:test";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { App } from "../../../../src/apps/{{applicationName}}/frontend/app.tsx";
 
-test("renders the ready application shell", () => {
-  const markup = renderToStaticMarkup(<App />);
+afterEach(() => cleanup());
 
-  expect(markup).toContain("{{applicationName}}");
-  expect(markup).toContain("Checking services");
+test("renders the ready application shell", async () => {
+  globalThis.fetch = mock(() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+    ),
+  ) as unknown as typeof fetch;
+
+  render(<App />);
+
+  expect(
+    screen.getByRole("heading", { name: "{{applicationName}}" }),
+  ).toBeTruthy();
+  await waitFor(() =>
+    expect(screen.getByRole("status").textContent).toContain(
+      "All systems ready",
+    ),
+  );
+});
+
+test("offers a retry after a health failure", async () => {
+  globalThis.fetch = mock(() =>
+    Promise.resolve(new Response(null, { status: 503 })),
+  ) as unknown as typeof fetch;
+
+  render(<App />);
+
+  await waitFor(() =>
+    expect(screen.getByRole("status").textContent).toContain(
+      "Service unavailable",
+    ),
+  );
+  expect(
+    screen.getByRole("button", { name: "Retry health check" }),
+  ).toBeTruthy();
 });

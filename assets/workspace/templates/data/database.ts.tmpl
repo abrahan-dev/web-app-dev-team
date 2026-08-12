@@ -12,7 +12,7 @@ export function createApplicationDatabase(client: Database): BunSQLiteDatabase {
 }
 
 export function openApplicationDatabase(
-  path = ".data/{{applicationName}}.sqlite",
+  path = process.env.WEB_APP_DATABASE_PATH ?? ".data/{{applicationName}}.sqlite",
 ): OpenApplicationDatabase {
   const client = new Database(path, { create: true });
   client.run("PRAGMA foreign_keys = ON");

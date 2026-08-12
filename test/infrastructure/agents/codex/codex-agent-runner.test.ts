@@ -284,63 +284,37 @@ describe("Codex agent runner", () => {
     ).toBe("thread-new\n");
   });
 
-  test("starts a compact fresh session after two consecutive quality failures", async () => {
+  test("starts a compact fresh session after one quality failure", async () => {
     const agentContext = await context();
-    agentContext.state.turns = 2;
-    agentContext.state.executions.push(
-      {
-        sequence: 1,
-        turn: 1,
-        role: Role.BackendCoder,
-        startedAt: "2026-08-11T10:00:00.000Z",
-        completedAt: "2026-08-11T10:01:00.000Z",
-        status: RunStatus.Completed,
-        usage: null,
-        commands: [],
-        changedFiles: [],
-      },
-      {
-        sequence: 2,
-        turn: 2,
-        role: Role.BackendCoder,
-        startedAt: "2026-08-11T10:02:00.000Z",
-        completedAt: "2026-08-11T10:03:00.000Z",
-        status: RunStatus.Completed,
-        usage: null,
-        commands: [],
-        changedFiles: [],
-      },
-    );
-    agentContext.state.localChecks.push(
-      {
-        sequence: 1,
-        turn: 1,
-        role: Role.BackendCoder,
-        kind: "quality-gate",
-        createdAt: "2026-08-11T10:01:30.000Z",
-        passed: false,
-        summary: "Coverage failed.",
-        details: ["server.ts has insufficient coverage."],
-        commands: [],
-      },
-      {
-        sequence: 2,
-        turn: 2,
-        role: Role.BackendCoder,
-        kind: "quality-gate",
-        createdAt: "2026-08-11T10:03:30.000Z",
-        passed: false,
-        summary: "Complexity failed.",
-        details: ["createOrder has complexity 11."],
-        commands: [],
-      },
-    );
+    agentContext.state.turns = 1;
+    agentContext.state.executions.push({
+      sequence: 1,
+      turn: 1,
+      role: Role.BackendCoder,
+      startedAt: "2026-08-11T10:00:00.000Z",
+      completedAt: "2026-08-11T10:01:00.000Z",
+      status: RunStatus.Completed,
+      usage: null,
+      commands: [],
+      changedFiles: [],
+    });
+    agentContext.state.localChecks.push({
+      sequence: 1,
+      turn: 1,
+      role: Role.BackendCoder,
+      kind: "quality-gate",
+      createdAt: "2026-08-11T10:01:30.000Z",
+      passed: false,
+      summary: "Complexity failed.",
+      details: ["createOrder has complexity 11."],
+      commands: [],
+    });
     await Bun.write(
       resolve(agentContext.runDirectory, "backend-coder-codex-session.txt"),
       "thread-old\n",
     );
     await Bun.write(
-      resolve(agentContext.runDirectory, "2-backend-coder-output.json"),
+      resolve(agentContext.runDirectory, "1-backend-coder-output.json"),
       JSON.stringify(backendHandoffFactory()),
     );
     const commands: string[][] = [];
@@ -358,7 +332,7 @@ describe("Codex agent runner", () => {
     expect(commands[0]?.slice(0, 2)).toEqual(["codex", "exec"]);
     expect(commands[0]).not.toContain("resume");
     expect(prompts[0]).toContain("focused correction assignment");
-    expect(prompts[0]).toContain("Consecutive quality failures: 2");
+    expect(prompts[0]).toContain("Consecutive quality failures: 1");
     expect(prompts[0]).toContain("createOrder has complexity 11");
     expect(prompts[0]).not.toContain("Deterministic workspace bootstrap:");
   });

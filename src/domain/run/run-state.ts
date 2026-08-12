@@ -63,6 +63,17 @@ export const localCommandResultSchema = z.object({
 });
 export type LocalCommandResult = z.infer<typeof localCommandResultSchema>;
 
+export const qualityFindingSchema = z.object({
+  code: z.string().min(1),
+  owner: roleSchema,
+  file: z.string().nullable(),
+  metric: z.enum(["functions", "lines", "statements"]).nullable(),
+  actual: z.number().nonnegative().nullable(),
+  required: z.number().nonnegative().nullable(),
+  message: z.string().min(1),
+});
+export type QualityFinding = z.infer<typeof qualityFindingSchema>;
+
 export const localCheckSchema = z.object({
   sequence: z.number().int().positive(),
   turn: z.number().int().positive(),
@@ -73,12 +84,13 @@ export const localCheckSchema = z.object({
   summary: z.string(),
   details: z.array(z.string()),
   commands: z.array(localCommandResultSchema),
+  findings: z.array(qualityFindingSchema).optional(),
 });
 export type LocalCheck = z.infer<typeof localCheckSchema>;
 
 export const workspaceBootstrapSchema = z.object({
   template: z.literal("web-app"),
-  templateVersion: z.literal(1),
+  templateVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   status: z.enum(["created", "skipped"]),
   reason: z.string().min(1),
   applicationName: featureIdSchema,
@@ -151,6 +163,17 @@ export const runStateSchema = z.object({
   specificationReviews: z.array(specificationReviewSchema).default([]),
   finalSummary: z.string().nullable(),
   failure: z.string().nullable(),
+  cancellation: z
+    .object({
+      cancelledAt: z.string(),
+      requestedBy: z.literal("operator"),
+      signal: z.enum(["SIGINT", "SIGTERM", "SIGHUP"]),
+      activeRole: roleSchema.nullable(),
+      activeExecutionStartedAt: z.string().nullable(),
+      lastCompletedTurn: z.number().int().nonnegative(),
+    })
+    .nullable()
+    .default(null),
   mode: z.enum(["delivery", "restitution"]).default("delivery"),
   targetSpecification: publishedSpecificationSchema.nullable().default(null),
   interruptions: z.array(interruptionSchema).default([]),

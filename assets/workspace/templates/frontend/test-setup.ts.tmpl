@@ -1,0 +1,33 @@
+import { Window } from "happy-dom";
+
+const window = new Window({ url: "http://localhost/" });
+
+Object.defineProperty(globalThis, "window", {
+  configurable: true,
+  value: window,
+});
+Object.defineProperty(globalThis, "document", {
+  configurable: true,
+  value: window.document,
+});
+Object.defineProperty(globalThis, "navigator", {
+  configurable: true,
+  value: window.navigator,
+});
+
+for (const name of [
+  "HTMLElement",
+  "HTMLButtonElement",
+  "HTMLInputElement",
+  "Node",
+  "Event",
+  "KeyboardEvent",
+  "MouseEvent",
+  "FocusEvent",
+  "MutationObserver",
+] as const) {
+  Object.defineProperty(globalThis, name, {
+    configurable: true,
+    value: window[name],
+  });
+}

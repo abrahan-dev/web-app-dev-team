@@ -1,0 +1,21 @@
+import { describe, expect, test } from "bun:test";
+import {
+  displayOptionalText,
+  validateTrimmedText,
+} from "../../../../src/apps/{{applicationName}}/frontend/ui-rules.ts";
+
+describe("UI text rules", () => {
+  test("validates the normalized value", () => {
+    expect(
+      validateTrimmedText("  valid  ", { field: "Title", maxLength: 5 }),
+    ).toBeNull();
+    expect(
+      validateTrimmedText("  too long  ", { field: "Title", maxLength: 5 }),
+    ).toBe("Title must contain at most 5 characters.");
+  });
+
+  test("uses the standard optional text fallback", () => {
+    expect(displayOptionalText("   ")).toBe("No description");
+    expect(displayOptionalText(" Details ")).toBe("Details");
+  });
+});

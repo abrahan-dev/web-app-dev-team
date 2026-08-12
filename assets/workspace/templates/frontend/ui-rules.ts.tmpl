@@ -1,0 +1,26 @@
+export interface TextRule {
+  field: string;
+  maxLength: number;
+  required?: boolean;
+}
+
+export function validateTrimmedText(
+  value: string,
+  rule: TextRule,
+): string | null {
+  const normalized = value.trim();
+
+  if ((rule.required ?? true) && normalized.length === 0) {
+    return `${rule.field} is required.`;
+  }
+
+  if (normalized.length > rule.maxLength) {
+    return `${rule.field} must contain at most ${rule.maxLength} characters.`;
+  }
+
+  return null;
+}
+
+export function displayOptionalText(value?: string | null): string {
+  return value?.trim() || "No description";
+}

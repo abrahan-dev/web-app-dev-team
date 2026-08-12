@@ -177,7 +177,7 @@ describe("development team orchestration", () => {
     expect(result.workspaceBootstrap).toMatchObject({
       status: "skipped",
       template: "web-app",
-      templateVersion: 1,
+      templateVersion: 3,
     });
     expect(result.specificationReviews[0]?.decision).toBe(SpecificationReviewDecision.Approved);
     expect(result.specificationReviews[0]?.publishedSpecification?.path).toBe(

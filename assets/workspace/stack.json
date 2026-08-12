@@ -6,16 +6,17 @@
     "@tanstack/react-query": "5.101.4",
     "@tanstack/react-router": "1.170.23",
     "@trpc/client": "11.18.0",
-    "@trpc/openapi": "11.18.0-alpha",
     "@trpc/server": "11.18.0",
     "@trpc/tanstack-react-query": "11.18.0",
     "drizzle-orm": "0.45.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-hook-form": "7.62.0",
+    "swagger-ui-dist": "5.32.13",
     "zod": "4.4.3"
   },
   "developmentDependencies": {
+    "@hey-api/openapi-ts": "0.94.5",
     "@playwright/test": "1.62.1",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/react": "16.3.0",
@@ -23,11 +24,13 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.5",
+    "@trpc/openapi": "11.18.0-alpha",
     "drizzle-kit": "0.31.8",
+    "happy-dom": "20.11.2",
     "oxlint": "1.77.0",
     "prettier": "3.8.2",
     "tailwindcss": "4.3.3",
-    "typescript": "7.0.2",
+    "typescript": "6.0.3",
     "vite": "8.2.1"
   }
 }

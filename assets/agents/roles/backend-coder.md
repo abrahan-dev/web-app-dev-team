@@ -29,9 +29,13 @@ persistence contract without approval.
 - Validate each input and output with Zod.
 - Use stable typed errors.
 - Apply authorization at the procedure or use-case limit.
-- Generate OpenAPI with the catalog `@trpc/openapi` version.
-- Provide Swagger UI.
-- Do not add a second REST implementation.
+- Export `AppRouter` from the tRPC router.
+- Keep the tRPC Fetch endpoint at `/trpc`.
+- Run the predefined `openapi:generate` script after router changes.
+- Keep the generated OpenAPI document at `/openapi.json`.
+- Keep the predefined Swagger UI at `/docs`.
+- Do not add REST routes or a second transport implementation.
+- Do not import `@trpc/openapi` in runtime application code.
 - Keep transport types out of domain objects.
 
 ## Focused tests

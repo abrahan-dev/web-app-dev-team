@@ -1,6 +1,8 @@
 [test]
+{{testPreload}}
 coverageSkipTestFiles = true
 coveragePathIgnorePatterns = [
   "src/contexts/*/infrastructure/persistence/schema.ts",
+{{coveragePreloadIgnore}}
 ]
 coverageThreshold = { lines = 0.8, functions = 0.8, statements = 0.8 }

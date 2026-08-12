@@ -13,6 +13,7 @@ import {
 import { Role } from "../../domain/roles.ts";
 import { SpecificationReviewDecision } from "../../domain/workflow-values.ts";
 import { turnLimitLabel } from "../../domain/turn-limit.ts";
+import { activeQualityFailure } from "../../application/development/quality-feedback.ts";
 import {
   formatElapsed,
   roleElapsedMilliseconds,
@@ -133,6 +134,8 @@ interface RoleSummary {
   name: string;
   time: string;
   totalTokens: number;
+  newInputTokens: number;
+  outputTokens: number;
 }
 
 function roleSummary(state: RunState, role: Role | null): RoleSummary {
@@ -144,6 +147,8 @@ function roleSummary(state: RunState, role: Role | null): RoleSummary {
       name: label(role),
       time: "0m 00s",
       totalTokens: 0,
+      newInputTokens: 0,
+      outputTokens: 0,
     };
   }
 
@@ -157,6 +162,8 @@ function roleSummary(state: RunState, role: Role | null): RoleSummary {
     name: label(role),
     time: formatElapsed(roleElapsedMilliseconds(state, role)),
     totalTokens: usage.totalTokens,
+    newInputTokens: Math.max(0, usage.inputTokens - usage.cachedInputTokens),
+    outputTokens: usage.outputTokens,
   };
 }
 
@@ -170,10 +177,31 @@ function summaryTable(state: RunState, activeRole: Role | null, turn = state.tur
     `│ ROLE         │ ${role.name.padEnd(20)} │ TEAM                 │`,
     `│ MODEL        │ ${role.model.padEnd(20)} │ ${`EFFORT ${role.effort}`.padEnd(20)} │`,
     `│ TOKENS       │ ${count(role.totalTokens).padEnd(20)} │ ${count(state.tokenTotals.team.totalTokens).padEnd(20)} │`,
+    `│ NEW INPUT    │ ${count(role.newInputTokens).padEnd(20)} │ ${count(Math.max(0, state.tokenTotals.team.inputTokens - state.tokenTotals.team.cachedInputTokens)).padEnd(20)} │`,
     `│ CACHED INPUT │ ${count(role.cachedInputTokens).padEnd(20)} │ ${count(state.tokenTotals.team.cachedInputTokens).padEnd(20)} │`,
+    `│ OUTPUT       │ ${count(role.outputTokens).padEnd(20)} │ ${count(state.tokenTotals.team.outputTokens).padEnd(20)} │`,
     `│ ACTIVE TIME  │ ${role.time.padEnd(20)} │ ${formatElapsed(runElapsedMilliseconds(state)).padEnd(20)} │`,
     "└──────────────┴──────────────────────┴──────────────────────┘",
   ].join("\n");
+}
+
+function coverageFocus(check: LocalCheck): string | null {
+  for (const detail of check.details) {
+    for (const line of detail.split("\n")) {
+      if (!line.includes("|") || !/\d+(?:\.\d+)?/u.test(line)) {
+        continue;
+      }
+
+      const cells = line.split("|").map((cell) => cell.trim());
+      const percentages = cells.slice(1).filter((cell) => /^\d+(?:\.\d+)?$/u.test(cell));
+
+      if (cells[0] && percentages.length > 0) {
+        return `${cells[0]} · observed ${percentages.join("% / ")}% · target configured per file`;
+      }
+    }
+  }
+
+  return null;
 }
 
 export async function recordTurnStarted(
@@ -181,12 +209,16 @@ export async function recordTurnStarted(
   state: RunState,
   activeRole: Role,
 ): Promise<void> {
+  const correction = activeQualityFailure(state, activeRole);
+  const correctionText = correction
+    ? `\n  CORRECTION: ${correction.summary}\n  TARGET: ${coverageFocus(correction) ?? correction.details[0]?.split("\n", 1)[0] ?? "See the failed local check."}`
+    : "";
   const message = `\n${rule}\n▶ TURN ${state.turns + 1}/${turnLimitLabel(state.maxTurns)}  ·  ${label(activeRole)} WORKING\n${rule}`;
   await Promise.all([
     appendRole(runDirectory, activeRole, message),
     appendSummary(
       runDirectory,
-      `\n${summaryTable(state, activeRole, state.turns + 1)}\n▶ ${label(activeRole)} WORKING`,
+      `\n${summaryTable(state, activeRole, state.turns + 1)}\n▶ ${label(activeRole)} WORKING${correctionText}`,
     ),
   ]);
 }
@@ -272,6 +304,22 @@ export async function recordRunFailure(
   await Promise.all([
     ...(role ? [appendRole(runDirectory, role, message)] : []),
     appendSummary(runDirectory, `${message}\n${summaryTable(state, role)}`),
+  ]);
+}
+
+export async function recordRunCancelled(runDirectory: string, state: RunState): Promise<void> {
+  const cancellation = state.cancellation;
+
+  if (!cancellation) {
+    return;
+  }
+
+  const message = `\n■ RUN CANCELLED  ·  ${label(cancellation.activeRole)}\n  Requested by ${cancellation.requestedBy} with ${cancellation.signal}.\n  Last completed turn: ${cancellation.lastCompletedTurn}.`;
+  await Promise.all([
+    ...(cancellation.activeRole
+      ? [appendRole(runDirectory, cancellation.activeRole, message)]
+      : []),
+    appendSummary(runDirectory, `${message}\n${summaryTable(state, cancellation.activeRole)}`),
   ]);
 }
 

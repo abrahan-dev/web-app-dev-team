@@ -1,4 +1,5 @@
 import {
+  agentTurnSchema,
   specificationReviewDecisionSchema,
   specifierTurnSchema,
   type AgentTurn,
@@ -24,6 +25,9 @@ export interface TurnPhaseResult {
   repeatRole: boolean;
 }
 
+export const qualityFailureEscalationThreshold = 3;
+export const finalReviewTurnReserve = 10;
+
 function requiresCoverage(role: Role, turn: AgentTurn): boolean {
   return isCodeWritingRole(role) || requiresFinalVerification(role, turn);
 }
@@ -34,6 +38,154 @@ function requiresFinalVerification(role: Role, turn: AgentTurn): boolean {
 
 function requiresQualityGate(role: Role, turn: AgentTurn): boolean {
   return isCodeWritingRole(role) || requiresFinalVerification(role, turn);
+}
+
+function stableFailureText(value: string): string {
+  return value
+    .replace(/web-app-dev-team-coverage-[A-Za-z0-9]+/gu, "web-app-dev-team-coverage-ID")
+    .replace(/\[\d+(?:\.\d+)?ms\]/gu, "[TIME]")
+    .replace(/\b\d+(?:\.\d+)?ms\b/gu, "TIME");
+}
+
+function qualityFailureSignature(check: LocalCheck): string {
+  if (check.findings?.length) {
+    return JSON.stringify(
+      check.findings
+        .map(({ code, owner, file, metric, actual, required }) => ({
+          code,
+          owner,
+          file,
+          metric,
+          actual,
+          required,
+        }))
+        .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))),
+    );
+  }
+
+  return JSON.stringify({
+    commands: check.commands.map(({ command, exitCode }) => ({
+      command: stableFailureText(command),
+      exitCode,
+    })),
+    details: check.details.map((detail) => stableFailureText(detail.split("\n", 1)[0] ?? detail)),
+  });
+}
+
+function executionChangedFiles(state: RunState, check: LocalCheck): string[] | null {
+  const execution = state.executions.findLast(
+    (candidate) => candidate.role === check.role && candidate.turn === check.turn,
+  );
+
+  return execution?.changedFiles ?? null;
+}
+
+function repeatedUnchangedFailureCount(state: RunState, gate: LocalCheck): number {
+  const signature = qualityFailureSignature(gate);
+  const assignment = state.messages.findLast((message) => message.to === gate.role);
+  let count = 0;
+
+  for (const check of state.localChecks.toReversed()) {
+    if (
+      (assignment !== undefined && check.createdAt < assignment.createdAt) ||
+      check.role !== gate.role ||
+      check.kind !== "quality-gate" ||
+      check.passed ||
+      qualityFailureSignature(check) !== signature
+    ) {
+      break;
+    }
+
+    const changedFiles = executionChangedFiles(state, check);
+
+    if (changedFiles === null || changedFiles.length > 0) {
+      break;
+    }
+
+    count += 1;
+  }
+
+  return count;
+}
+
+function escalatedQualityTurn(turn: AgentTurn, gate: LocalCheck, failures: number): AgentTurn {
+  const failure = gate.findings?.[0]?.message ?? gate.details[0]?.split("\n", 1)[0] ?? gate.summary;
+
+  return agentTurnSchema.parse({
+    ...turn,
+    decision: TurnDecision.Handoff,
+    nextRole: Role.Architect,
+    reason: `The same local quality failure occurred ${failures} times without file changes. The architect must resolve this blocker. ${failure}`,
+  });
+}
+
+function mustReserveFinalReviewTurns(state: RunState): boolean {
+  return (
+    state.maxTurns > finalReviewTurnReserve &&
+    state.maxTurns - state.turns <= finalReviewTurnReserve
+  );
+}
+
+function qualityFailureOwner(gate: LocalCheck): Role | null {
+  return (
+    gate.findings?.find(({ code, owner }) => code !== "command-failed" && owner !== gate.role)
+      ?.owner ?? null
+  );
+}
+
+function routedQualityTurn(turn: AgentTurn, gate: LocalCheck, reason: string): AgentTurn {
+  const failure = gate.findings?.[0]?.message ?? gate.summary;
+
+  return agentTurnSchema.parse({
+    ...turn,
+    decision: TurnDecision.Handoff,
+    nextRole: Role.Architect,
+    reason: `${reason} The architect must resolve this blocker. ${failure}`,
+  });
+}
+
+function qualityEscalation(
+  state: RunState,
+  role: Role,
+  turn: AgentTurn,
+  gate: LocalCheck,
+): TurnPhaseResult | null {
+  if (!isCodeWritingRole(role)) {
+    return null;
+  }
+
+  const failureOwner = qualityFailureOwner(gate);
+
+  if (failureOwner) {
+    return {
+      turn: routedQualityTurn(
+        turn,
+        gate,
+        `The deterministic failure belongs to ${failureOwner}, not ${role}.`,
+      ),
+      repeatRole: false,
+    };
+  }
+
+  const repeatedFailures = repeatedUnchangedFailureCount(state, gate);
+
+  if (repeatedFailures >= qualityFailureEscalationThreshold) {
+    return {
+      turn: escalatedQualityTurn(turn, gate, repeatedFailures),
+      repeatRole: false,
+    };
+  }
+
+  return mustReserveFinalReviewTurns(state)
+    ? {
+        turn: routedQualityTurn(
+          turn,
+          gate,
+          `Only ${state.maxTurns - state.turns} configured turns remain.`,
+        ),
+        repeatRole: false,
+      }
+    : null;
 }
 
 function gherkinCheck(
@@ -204,6 +356,7 @@ export async function processQualityPhase(options: {
     runScripts: finalVerificationRequired,
     runBrowserTests: finalVerificationRequired,
     runCoverage: coverageRequired,
+    requireExactDependencies: state.workspaceBootstrap?.status === "created",
   });
   run.recordCheck(gate);
   turn = {
@@ -219,11 +372,19 @@ export async function processQualityPhase(options: {
   await services.operatorLog.localCheck(runDirectory, state, gate);
 
   if (!gate.passed) {
+    const escalation = qualityEscalation(state, accepted.role, turn, gate);
+
+    if (escalation) {
+      return escalation;
+    }
+
     run.repeatRole(accepted.role);
     await services.runRepository.save(runDirectory, state);
 
     return { turn, repeatRole: true };
   }
+
+  await services.workspaceInventory.refresh(state.workspace, runDirectory);
 
   return { turn, repeatRole: false };
 }

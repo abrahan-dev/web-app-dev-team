@@ -1,9 +1,16 @@
 @import "tailwindcss";
 
 :root {
+  --color-page: #080b12;
+  --color-surface: #0f172a;
+  --color-text: #f8fafc;
+  --color-muted: #cbd5e1;
+  --color-accent: #a5b4fc;
+  --color-success: #a7f3d0;
+  --color-success-surface: #064e3b;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  color: #f8fafc;
-  background: #080b12;
+  color: var(--color-text);
+  background: var(--color-page);
   font-synthesis: none;
 }
 
@@ -24,7 +31,7 @@ body {
   background:
     radial-gradient(circle at 20% 15%, rgb(99 102 241 / 35%), transparent 35%),
     radial-gradient(circle at 80% 85%, rgb(14 165 233 / 25%), transparent 40%),
-    #080b12;
+    var(--color-page);
 }
 
 .hero {
@@ -32,14 +39,14 @@ body {
   padding: clamp(2rem, 8vw, 5rem);
   border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 2rem;
-  background: rgb(15 23 42 / 70%);
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent);
   box-shadow: 0 2rem 6rem rgb(0 0 0 / 35%);
   backdrop-filter: blur(1.5rem);
 }
 
 .eyebrow {
   margin: 0 0 1rem;
-  color: #a5b4fc;
+  color: var(--color-accent);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -56,7 +63,7 @@ h1 {
 .intro {
   max-width: 32rem;
   margin: 1.5rem 0 2rem;
-  color: #cbd5e1;
+  color: var(--color-muted);
   font-size: 1.125rem;
   line-height: 1.7;
 }
@@ -68,9 +75,26 @@ h1 {
   padding: 0.7rem 1rem;
   border: 1px solid rgb(52 211 153 / 25%);
   border-radius: 999px;
-  color: #a7f3d0;
-  background: rgb(6 78 59 / 25%);
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success-surface) 25%, transparent);
   font-size: 0.875rem;
+}
+
+button {
+  margin-top: 1rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--color-accent);
+  border-radius: 0.75rem;
+  color: var(--color-page);
+  background: var(--color-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:focus-visible {
+  outline: 3px solid var(--color-text);
+  outline-offset: 3px;
 }
 
 .health span {

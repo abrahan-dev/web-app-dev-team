@@ -15,4 +15,12 @@ describe("application router", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: "ok" });
   });
+
+  test("serves local API documentation", async () => {
+    const response = await handleRequest(new Request("http://localhost/docs"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(await response.text()).toContain('url: "/openapi.json"');
+  });
 });

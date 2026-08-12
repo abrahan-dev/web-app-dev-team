@@ -20,19 +20,24 @@ Use this stack unless the existing code needs a compatible change:
 
 - Use TypeScript in strict mode.
 - Use Bun for the runtime, packages, and scripts.
-- Use tRPC with the Fetch API.
-- Use Zod to validate tRPC input and output.
-- Generate OpenAPI from tRPC with the catalog `@trpc/openapi` version.
-- Serve the OpenAPI document with Swagger UI.
+- Serve one tRPC API at `/trpc` with the tRPC Fetch adapter.
+- Export `AppRouter` from the application router.
+- Use Zod 4 to validate every tRPC input and output.
+- Generate OpenAPI 3.1.1 with the predefined `openapi:generate` script.
+- Treat OpenAPI as documentation for the tRPC API. Do not create REST routes.
+- Serve the generated document at `/openapi.json`.
+- Serve the local catalog Swagger UI at `/docs`.
 - Store SQLite files in `.data/`, which Git ignores.
 - Use Drizzle ORM with `bun:sqlite`.
 - Commit Drizzle Kit SQL migrations.
 - Use React, Vite, and the tRPC TanStack React Query integration.
 - Use TanStack Router, React Hook Form, Tailwind CSS, and shadcn/ui.
 - Use `bun:test`, Testing Library, and Playwright for tests.
+- Pin each dependency to the exact resolved catalog version.
 
-Do not create a second REST API next to tRPC. If a fixed dependency cannot work,
-return a specific compatibility problem.
+The bootstrap owns the API transport, OpenAPI command, document routes, and
+Swagger UI setup. Do not replace or duplicate them. If a fixed dependency
+cannot work, return a specific compatibility problem.
 
 Do not select dependency versions. For a new project, use the resolved stack
 catalog in the prompt. For an existing project, use its `package.json` and
@@ -100,9 +105,13 @@ Use this order: UI design, data, backend, frontend, and QA.
 - Do not make repository interfaces have the same structure as ORM interfaces.
 - Define transaction and idempotency limits.
 - Specify each tRPC procedure, Zod schema, error, and authorization rule.
+- Keep procedure names and schemas in the tRPC router. Let the fixed generator
+  derive OpenAPI from the exported `AppRouter` type.
 - Identify constraints, unique values, indexes, migrations, and data backfills.
 - Specify security, audit, and sensitive-data behavior.
 - Select the smallest complete change.
+- Require Playwright CRUD coverage when the specification contains CRUD behavior.
+- Require loading, error, keyboard, focus, 320 px, and 1280 px browser checks.
 - Do not add abstractions for possible future work.
 - Reject circular dependencies and hidden global dependencies.
 
@@ -126,6 +135,10 @@ When `Architecture task` is `implementation review`, do a read-only review.
 Check the implemented contexts, boundaries, API procedures, persistence,
 migrations, security decisions, and unnecessary abstractions against the
 approved specification and your plan.
+
+When `Architecture task` is `incremental implementation review`, verify the
+prior findings first. Inspect the cited correction paths and recent changes.
+Do not repeat a complete review unless architecture boundaries changed.
 
 For an approved implementation:
 

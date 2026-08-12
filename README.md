@@ -90,7 +90,8 @@ keep their role colors.
 
 The eighth pane shows the run summary and important workflow events. Each role
 pane shows only its own agent output and relevant handoffs. The summary table
-shows the active role model and reasoning effort.
+shows the active role model and reasoning effort. It separates new input,
+cached input, and output tokens.
 
 The pane border shows live active time for each role. The active pane also shows
 the total run time since the initial prompt. A returning role continues from its
@@ -183,6 +184,10 @@ Stop a run with the session name printed by `run`:
 ```bash
 tmux kill-session -t web-app-dev-team-123456789
 ```
+
+The controller records `cancelled` when it receives `SIGINT`, `SIGTERM`, or
+`SIGHUP`. The
+summary records the active role, signal, and last completed turn.
 
 The `configure` command stores the selected limit in the user configuration.
 The `--max-turns` option overrides that value for one command.
@@ -412,8 +417,11 @@ not replace files in an existing project. It installs dependencies and runs
 the initial checks before a specialist starts.
 
 The full-stack template includes a `/health` endpoint and a minimal React
-screen. Unit tests verify the endpoint and the screen. A Playwright smoke test
-verifies the complete application before implementation starts.
+screen. Testing Library runs with a pinned Happy DOM environment. Playwright
+uses an isolated SQLite file and clears it before each server start.
+
+The browser base verifies success, error, retry focus, and responsive widths.
+The template also provides reusable CRUD and tRPC cleanup helpers.
 
 ```mermaid
 flowchart TD
@@ -489,11 +497,26 @@ drizzle/                      # Contains committed SQL migrations
 
 The fixed stack uses TypeScript, Bun, tRPC, Zod, OpenAPI, Swagger UI, Drizzle,
 `bun:sqlite`, React, Vite, TanStack Router, TanStack Query, Tailwind, shadcn/ui,
-and Playwright. See the [stack catalog](./assets/workspace/stack.json) for the
-pinned versions.
+Happy DOM, and Playwright. See the
+[stack catalog](./assets/workspace/stack.json) for the pinned versions.
 
-The internal API uses `@trpc/openapi`. Do not use this API as a public
-compatibility contract.
+The generated package pins every dependency to one exact version. The quality
+gate rejects a range in a generated application.
+
+New applications use TypeScript 6.0.3. The API stack needs the TypeScript
+compiler API. TypeScript 7.0 does not provide that API.
+
+The backend serves one tRPC Fetch endpoint at `/trpc`. Each router exports its
+`AppRouter` type. Zod validates procedure input and output.
+
+The `openapi:generate` script uses `@trpc/openapi` and
+`@hey-api/openapi-ts`. It generates OpenAPI 3.1.1 from `AppRouter`. OpenAPI
+documents the tRPC endpoint. It does not create REST routes. The backend serves
+the document at `/openapi.json`. It serves pinned local Swagger UI assets at
+`/docs`.
+
+The bootstrap runs OpenAPI generation before agent implementation starts. This
+check rejects an incompatible API stack before a specialist starts.
 
 ### Specifications and restitution
 
@@ -532,11 +555,19 @@ The controller runs `test:coverage` after QA requests completion. The QA role
 does not run the same full coverage script itself. A failed QA gate returns the
 failure evidence to QA. QA then selects the responsible implementation role.
 
-The first quality-gate retry resumes the current Codex session. After two
-consecutive failures, the next retry starts a fresh session with a compact
-correction prompt. A later correction from QA or the architect also uses a
-compact session. This prevents old command output from increasing a small
-correction context.
+Every failed quality gate starts a fresh session with a compact correction
+prompt. The prompt contains the finding, target paths, recent diff, and failed
+output. It excludes unrelated history.
+
+A correction role stops when the focused checks pass. It must not add optional
+cleanup or features after the correction passes.
+
+A repeated architecture review verifies prior findings first. It reads the
+latest correction and avoids a complete review when boundaries did not change.
+
+The controller compares repeated quality failures. After three identical
+failures without file changes, it sends the blocker to the architect. This
+rule prevents an unchanged specialist retry loop.
 
 The generated `db:generate` script formats Drizzle JSON metadata after migration
 generation. It does not format SQL migration files.
@@ -545,14 +576,22 @@ New applications define coverage limits in `bunfig.toml`. The default limits
 are 80 percent for lines, functions, and statements. Browser E2E tests do not
 replace unit or integration coverage.
 
+Bun applies these thresholds to each measured file. The controller also finds
+runtime source files that do not appear in the coverage report. A coverage
+ignore needs a browser-only reason in the same comment.
+
+The frontend template includes a prevalidated WCAG AA palette. Its generated
+test checks the required contrast pairs. Shared helpers validate trimmed text
+and show `No description` for empty optional descriptions.
+
 ### Generated continuous integration
 
 The new-project bootstrap creates `.github/workflows/ci.yml`. The workflow runs
 for pull requests and pushes to `main`.
 
 It installs the pinned Bun version and uses the Bun cache. It then checks
-formatting, lint rules, types, and tests. A frontend project also runs
-Playwright with Chromium.
+OpenAPI generation, formatting, lint rules, types, and tests. A frontend
+project also runs Playwright with Chromium.
 
 The workflow uses read-only repository permissions. It cancels an older run
 for the same branch.

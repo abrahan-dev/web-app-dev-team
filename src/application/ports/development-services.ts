@@ -20,7 +20,13 @@ export interface WorkspaceFacts {
   testRoots: string[];
   topLevelDirectories: string[];
   configFiles: string[];
+  migrationFiles: string[];
   architectureBaseline: string[];
+  coverageThresholds?: {
+    functions: number;
+    lines: number;
+    statements: number;
+  } | null;
 }
 
 export interface RunRepository {
@@ -58,6 +64,7 @@ export interface QualityGateOptions {
   runBrowserTests?: boolean;
   runScripts?: boolean;
   runCoverage?: boolean;
+  requireExactDependencies?: boolean;
 }
 
 export interface QualityGate {
@@ -81,6 +88,7 @@ export interface OperatorLog {
     role: Role | null,
     failure: string,
   ): Promise<void>;
+  runCancelled(runDirectory: string, state: RunState): Promise<void>;
   localCheck(runDirectory: string, state: RunState, check: LocalCheck): Promise<void>;
   workspaceBootstrap(
     runDirectory: string,
